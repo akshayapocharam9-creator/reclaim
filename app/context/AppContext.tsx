@@ -1,0 +1,172 @@
+'use client';
+
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import { RecoveryOpportunity, AgentActivity, AppSettings, RecoveryStatus, Integration, IntegrationStatus } from '../types';
+import { rawEvents } from '../lib/demo-events';
+import { RevenueIntelligenceEngine } from '../lib/revenue-intelligence';
+import { ReclaimAgent } from '../lib/agent';
+
+interface AppContextType {
+  opportunities: RecoveryOpportunity[];
+  activities: AgentActivity[];
+  settings: AppSettings;
+  integrations: Integration[];
+  approveOpportunity: (id: string) => void;
+  dismissOpportunity: (id: string) => void;
+  updateSettings: (newSettings: Partial<AppSettings>) => void;
+  updateIntegration: (id: string, updates: Partial<Integration>) => void;
+  decision: { opportunity: RecoveryOpportunity, explanation: string } | null;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export function AppProvider({ children }: { children: React.ReactNode }) {
+  const intelligenceEngine = useMemo(() => new RevenueIntelligenceEngine(), []);
+  const reclaimAgent = useMemo(() => new ReclaimAgent(), []);
+
+  const initialOpportunities = useMemo(() => intelligenceEngine.analyzeEvents(rawEvents), [intelligenceEngine]);
+  const initialActivities = useMemo(() => reclaimAgent.generateActivities(initialOpportunities), [reclaimAgent, initialOpportunities]);
+
+  const [opportunities, setOpportunities] = useState<RecoveryOpportunity[]>(initialOpportunities);
+  const [activities, setActivities] = useState<AgentActivity[]>(initialActivities);
+  const [settings, setSettings] = useState<AppSettings>({
+    approvalMode: 'manual',
+    notifications: 'important',
+    riskThreshold: 1000,
+    agentActive: true,
+  });
+
+  const [integrations, setIntegrations] = useState<Integration[]>([
+    { id: 'stripe', name: 'Stripe', category: 'Payment Gateway', icon: 'S', description: 'Recover failed payments and track MRR.', syncData: ['Payment failures', 'Successful payments', 'Subscriptions'], status: 'not_connected' },
+    { id: 'shopify', name: 'Shopify', category: 'E-commerce', icon: 'Sh', description: 'Recover abandoned carts and track sales.', syncData: ['Orders', 'Abandoned carts', 'Customer information'], status: 'not_connected' },
+    { id: 'quickbooks', name: 'QuickBooks', category: 'Accounting', icon: 'Q', description: 'Monitor unpaid invoices and outstanding balances.', syncData: ['Invoices', 'Payments', 'Outstanding balances'], status: 'not_connected' },
+    { id: 'salesforce', name: 'Salesforce', category: 'CRM', icon: 'Sf', description: 'Track customer value and opportunities.', syncData: ['Customers', 'Opportunities', 'Account value'], status: 'not_connected' },
+    { id: 'hubspot', name: 'HubSpot', category: 'CRM', icon: 'H', description: 'Sync deals, contacts, and customer activity.', syncData: ['Contacts', 'Deals', 'Customer activity'], status: 'not_connected' },
+  ]);
+
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('reclaim_settings');
+    if (savedSettings) {
+      try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSettings(JSON.parse(savedSettings));
+      } catch {
+        console.error('Failed to parse settings');
+      }
+    }
+
+    const savedIntegrations = localStorage.getItem('reclaim_integrations');
+    if (savedIntegrations) {
+      try {
+        const parsed = JSON.parse(savedIntegrations) as Integration[];
+        // Merge saved statuses into base integrations
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setIntegrations(prev => prev.map(i => {
+          const s = parsed.find(p => p.id === i.id);
+          return s ? { ...i, status: s.status, lastSync: s.lastSync } : i;
+        }));
+      } catch {
+        console.error('Failed to parse integrations');
+      }
+    }
+
+    setIsLoaded(true);
+  }, []);
+
+  const updateIntegration = (id: string, updates: Partial<Integration>) => {
+    setIntegrations(prev => {
+      const next = prev.map(i => i.id === id ? { ...i, ...updates } : i);
+      localStorage.setItem('reclaim_integrations', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const updateOpportunityStatus = (id: string, status: RecoveryStatus, message: string) => {
+    setOpportunities(prev => 
+      prev.map(opp => opp.id === id ? { ...opp, status } : opp)
+    );
+
+    setActivities(prev => [
+      {
+        id: `act-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: 'Just now',
+        message,
+        type: 'action'
+      },
+      ...prev
+    ]);
+  };
+
+  const approveOpportunity = (id: string) => {
+    const opp = opportunities.find(o => o.id === id);
+    if (opp) {
+      updateOpportunityStatus(id, 'queued_for_recovery', `Action approved for ${opp.customerName}. Queued for recovery.`);
+    }
+  };
+
+  const dismissOpportunity = (id: string) => {
+    const opp = opportunities.find(o => o.id === id);
+    if (opp) {
+      updateOpportunityStatus(id, 'dismissed', `Opportunity dismissed for ${opp.customerName}.`);
+    }
+  };
+
+  const updateSettings = (newSettings: Partial<AppSettings>) => {
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      localStorage.setItem('reclaim_settings', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Apply Risk Threshold Filter to pending opportunities
+  const filteredOpportunities = useMemo(() => {
+    return opportunities.filter(opp => {
+      if (opp.status === 'pending' && opp.amount < settings.riskThreshold) {
+        return false;
+      }
+      return true;
+    });
+  }, [opportunities, settings.riskThreshold]);
+
+  // If agent is inactive, decision is null
+  const decision = useMemo(() => {
+    if (!settings.agentActive) return null;
+    return reclaimAgent.determineNextBestAction(filteredOpportunities);
+  }, [filteredOpportunities, reclaimAgent, settings.agentActive]);
+
+  // Filter activities based on notification preference
+  const visibleActivities = useMemo(() => {
+    if (settings.notifications === 'none') return [];
+    if (settings.notifications === 'important') {
+      return activities.filter(a => a.type === 'alert' || a.type === 'action');
+    }
+    return activities;
+  }, [activities, settings.notifications]);
+
+  return (
+    <AppContext.Provider value={{
+      opportunities: filteredOpportunities,
+      activities: visibleActivities,
+      settings,
+      integrations,
+      approveOpportunity,
+      dismissOpportunity,
+      updateSettings,
+      updateIntegration,
+      decision,
+    }}>
+      {isLoaded ? children : <div className="p-8 flex justify-center text-gray-500">Loading workspace...</div>}
+    </AppContext.Provider>
+  );
+}
+
+export function useAppContext() {
+  const context = useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useAppContext must be used within an AppProvider');
+  }
+  return context;
+}
