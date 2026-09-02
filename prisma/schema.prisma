@@ -1,0 +1,412 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum AttemptStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum SessionStatus {
+  OPEN
+  ABANDONED
+  COMPLETED
+  EXPIRED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  UNPAID
+  TRIALING
+}
+
+enum OpportunityType {
+  PAYMENT_FAILURE
+  REPEATED_PAYMENT_FAILURE
+  CHECKOUT_ABANDONMENT
+  SUBSCRIPTION_FAILURE
+}
+
+enum OpportunityStatus {
+  DETECTED
+  ANALYZED
+  RECOMMENDED
+  APPROVED
+  IN_PROGRESS
+  RECOVERED
+  FAILED
+  DISMISSED
+}
+
+enum PriorityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ActionType {
+  RETRY_PAYMENT
+  RECOVER_CHECKOUT
+  RETRY_SUBSCRIPTION
+  CONTACT_CUSTOMER
+}
+
+enum ActionStatus {
+  PENDING
+  APPROVED
+  EXECUTING
+  EXECUTED
+  FAILED
+  CANCELED
+}
+
+enum OutcomeType {
+  SUCCESS
+  PARTIAL_SUCCESS
+  FAILURE
+}
+
+model Tenant {
+  id                    String                @id @default(cuid())
+  name                  String
+  slug                  String                @unique
+  
+  customers             Customer[]
+  orders                Order[]
+  payments              Payment[]
+  paymentAttempts       PaymentAttempt[]
+  checkoutSessions      CheckoutSession[]
+  subscriptions         Subscription[]
+  recoveryOpportunities RecoveryOpportunity[]
+  recoveryActions       RecoveryAction[]
+  recoveryOutcomes      RecoveryOutcome[]
+  webhookEvents         WebhookEvent[]
+
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+}
+
+model Customer {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  provider              String?
+  providerCustomerId    String?
+  
+  name                  String
+  email                 String
+  phone                 String?
+  metadata              Json?
+  
+  orders                Order[]
+  payments              Payment[]
+  paymentAttempts       PaymentAttempt[]
+  checkoutSessions      CheckoutSession[]
+  subscriptions         Subscription[]
+  recoveryOpportunities RecoveryOpportunity[]
+  
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@unique([tenantId, provider, providerCustomerId])
+  @@index([tenantId])
+  @@index([email])
+}
+
+model Order {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId            String
+  customer              Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  provider              String?
+  providerOrderId       String?
+  
+  amountMinor           Int
+  currency              String                @default("INR")
+  status                OrderStatus
+  metadata              Json?
+  
+  payments              Payment[]
+  paymentAttempts       PaymentAttempt[]
+  checkoutSessions      CheckoutSession[]
+  recoveryOpportunities RecoveryOpportunity[]
+  
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@unique([tenantId, provider, providerOrderId])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model Payment {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId            String
+  customer              Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId               String?
+  order                 Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  
+  provider              String?
+  providerPaymentId     String?
+  
+  amountMinor           Int
+  currency              String                @default("INR")
+  status                PaymentStatus
+  paymentMethod         Json?
+  metadata              Json?
+  
+  capturedAt            DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  attempts              PaymentAttempt[]
+  checkoutSessions      CheckoutSession[]
+  recoveryOpportunities RecoveryOpportunity[]
+
+  @@unique([tenantId, provider, providerPaymentId])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([status])
+}
+
+model PaymentAttempt {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId            String
+  customer              Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  paymentId             String?
+  payment               Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  orderId               String?
+  order                 Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  
+  attemptNumber         Int
+  amountMinor           Int
+  currency              String                @default("INR")
+  status                AttemptStatus
+  failureCode           String?
+  failureReason         String?
+  gatewayResponse       Json?
+  
+  attemptedAt           DateTime              @default(now())
+
+  @@unique([paymentId, attemptNumber])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([paymentId])
+  @@index([orderId])
+  @@index([attemptedAt])
+}
+
+model CheckoutSession {
+  id                         String                @id @default(cuid())
+  tenantId                   String
+  tenant                     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId                 String?
+  customer                   Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId                    String?
+  order                      Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  paymentId                  String?
+  payment                    Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  
+  provider                   String?
+  providerCheckoutSessionId  String?
+  
+  amountMinor                Int
+  currency                   String                @default("INR")
+  status                     SessionStatus
+  
+  startedAt                  DateTime              @default(now())
+  abandonedAt                DateTime?
+  completedAt                DateTime?
+  expiresAt                  DateTime?
+  metadata                   Json?
+  
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  
+  recoveryOpportunities      RecoveryOpportunity[]
+
+  @@unique([tenantId, provider, providerCheckoutSessionId])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id                        String                @id @default(cuid())
+  tenantId                  String
+  tenant                    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId                String
+  customer                  Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  provider                  String?
+  providerSubscriptionId    String?
+  
+  planName                  String
+  amountMinor               Int
+  currency                  String                @default("INR")
+  billingInterval           String
+  status                    SubscriptionStatus
+  
+  nextChargeAt              DateTime?
+  startedAt                 DateTime?
+  endedAt                 DateTime?
+  canceledAt                DateTime?
+  metadata                  Json?
+  
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  
+  recoveryOpportunities     RecoveryOpportunity[]
+
+  @@unique([tenantId, provider, providerSubscriptionId])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model RecoveryOpportunity {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId            String?
+  customer              Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId               String?
+  order                 Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  paymentId             String?
+  payment               Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  checkoutSessionId     String?
+  checkoutSession       CheckoutSession?      @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+  subscriptionId        String?
+  subscription          Subscription?         @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  
+  type                  OpportunityType
+  status                OpportunityStatus
+  amountAtRiskMinor     Int
+  recoverableAmountMinor Int
+  priority              PriorityLevel
+  score                 Int
+  confidenceScore       Float?
+  reason                String
+  evidence              Json
+  recommendation        Json?
+  
+  actions               RecoveryAction[]
+  outcomes              RecoveryOutcome[]
+  
+  detectedAt            DateTime              @default(now())
+  resolvedAt            DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([type])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model RecoveryAction {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId         String
+  opportunity           RecoveryOpportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  
+  type                  ActionType
+  status                ActionStatus
+  channel               String?
+  recommendationSnapshot Json?
+  payload               Json?
+  
+  approvedAt            DateTime?
+  scheduledAt           DateTime?
+  executedAt            DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  outcomes              RecoveryOutcome[]
+
+  @@index([tenantId])
+  @@index([opportunityId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model RecoveryOutcome {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId         String
+  opportunity           RecoveryOpportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  actionId              String?
+  action                RecoveryAction?       @relation(fields: [actionId], references: [id], onDelete: SetNull)
+  
+  type                  OutcomeType
+  recoveredAmountMinor  Int
+  currency              String                @default("INR")
+  provider              String?
+  providerReference     String?
+  details               Json?
+  
+  occurredAt            DateTime              @default(now())
+
+  @@index([tenantId])
+  @@index([opportunityId])
+  @@index([actionId])
+}
+
+model WebhookEvent {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  provider              String                
+  eventId               String
+  eventType             String
+  payload               Json
+  
+  processedAt           DateTime?
+  createdAt             DateTime              @default(now())
+
+  @@unique([tenantId, provider, eventId])
+  @@index([tenantId])
+  @@index([createdAt])
+}
