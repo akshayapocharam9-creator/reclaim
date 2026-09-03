@@ -1,6 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
 import { signUpUser } from '../../../lib/auth/service'
 import { SESSION_COOKIE_NAME } from '../../../lib/auth/session'
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,8 +37,21 @@ export async function POST(request: NextRequest) {
     })
 
     return response
-  } catch (error) {
+  } catch (error: any) {
     console.error('[API_AUTH_SIGNUP_ERROR]', error)
-    return NextResponse.json({ error: 'Internal registration error' }, { status: 500 })
+
+    if (error?.code === 'P2002') {
+      return NextResponse.json({ error: 'An account or organization with these details already exists. Please sign in.' }, { status: 409 })
+    }
+    if (error?.code === 'P1001' || error?.name === 'PrismaClientInitializationError') {
+      return NextResponse.json({ error: 'Database connection failed. Please verify DATABASE_URL is configured in Vercel environment variables.' }, { status: 503 })
+    }
+
+    const rawMessage = error?.message || ''
+    const safeMessage = rawMessage && !rawMessage.toLowerCase().includes('password') && !rawMessage.toLowerCase().includes('secret')
+      ? rawMessage
+      : 'Internal registration error'
+
+    return NextResponse.json({ error: safeMessage }, { status: 500 })
   }
 }

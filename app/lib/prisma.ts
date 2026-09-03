@@ -4,9 +4,37 @@ declare global {
   var prismaGlobal: PrismaClient | undefined
 }
 
+/**
+ * Ensures special characters (like '@') in the database password are safely URL-encoded.
+ * Example: postgresql://user:@kshaya@20_3@host:6543/db -> postgresql://user:%40kshaya%4020_3@host:6543/db
+ */
+function sanitizeDatabaseUrl(url?: string): string | undefined {
+  if (!url || typeof url !== 'string') return url
+  const match = url.match(/^(postgresql:\/\/[^:]+:)(.*)(@[^@\/]+:[0-9]+\/.*)$/)
+  if (match) {
+    const [, prefix, password, suffix] = match
+    const encodedPassword = password.replace(/@/g, '%40')
+    return prefix + encodedPassword + suffix
+  }
+  return url
+}
+
 function getPrismaClient(): PrismaClient {
   if (!globalThis.prismaGlobal) {
-    globalThis.prismaGlobal = new PrismaClient()
+    const rawUrl = process.env.DATABASE_URL
+    const sanitizedUrl = sanitizeDatabaseUrl(rawUrl)
+
+    globalThis.prismaGlobal = new PrismaClient(
+      sanitizedUrl
+        ? {
+            datasources: {
+              db: {
+                url: sanitizedUrl
+              }
+            }
+          }
+        : undefined
+    )
   }
   return globalThis.prismaGlobal
 }

@@ -92,29 +92,29 @@ export async function signUpUser(params: {
     }
   }
 
-  // Create User and Membership in a transaction
-  const [createdUser, membership] = await prisma.$transaction(async tx => {
-    const user = await tx.user.create({
-      data: {
-        email,
-        name: params.name || email.split('@')[0],
-        passwordHash
+  // Create User and Membership atomically via Prisma nested relation write (pooler/PgBouncer safe)
+  const createdUser = await prisma.user.create({
+    data: {
+      email,
+      name: params.name || email.split('@')[0],
+      passwordHash,
+      memberships: {
+        create: {
+          tenantId: tenantId!,
+          role
+        }
       }
-    })
-
-    const member = await tx.membership.create({
-      data: {
-        userId: user.id,
-        tenantId: tenantId!,
-        role
-      },
-      include: {
-        tenant: true
+    },
+    include: {
+      memberships: {
+        include: {
+          tenant: true
+        }
       }
-    })
-
-    return [user, member]
+    }
   })
+
+  const membership = createdUser.memberships[0]
 
   const token = createSessionToken({
     userId: createdUser.id,
