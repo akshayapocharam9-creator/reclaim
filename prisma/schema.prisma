@@ -75,6 +75,9 @@ enum ActionType {
   RECOVER_CHECKOUT
   RETRY_SUBSCRIPTION
   CONTACT_CUSTOMER
+  SEND_PAYMENT_REMINDER
+  ESCALATE
+  MONITOR
 }
 
 enum ActionStatus {
@@ -84,6 +87,14 @@ enum ActionStatus {
   EXECUTED
   FAILED
   CANCELED
+}
+
+enum ExecutionStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
 }
 
 enum OutcomeType {
@@ -107,6 +118,10 @@ model Tenant {
   recoveryActions       RecoveryAction[]
   recoveryOutcomes      RecoveryOutcome[]
   webhookEvents         WebhookEvent[]
+  memberships           Membership[]
+  recoveryExecutions    RecoveryExecution[]
+  auditEvents           AuditEvent[]
+  recoveryPolicies      RecoveryPolicy[]
 
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
@@ -326,21 +341,26 @@ model RecoveryOpportunity {
   reason                String
   evidence              Json
   recommendation        Json?
+  correlationKey        String?
   
   actions               RecoveryAction[]
   outcomes              RecoveryOutcome[]
+  executions            RecoveryExecution[]
+  auditEvents           AuditEvent[]
   
   detectedAt            DateTime              @default(now())
   resolvedAt            DateTime?
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
 
+  @@unique([tenantId, correlationKey])
   @@index([tenantId])
   @@index([customerId])
   @@index([type])
   @@index([status])
   @@index([priority])
   @@index([createdAt])
+  @@index([correlationKey])
 }
 
 model RecoveryAction {
@@ -353,6 +373,9 @@ model RecoveryAction {
   type                  ActionType
   status                ActionStatus
   channel               String?
+  expectedRecoveryAmountMinor Int?
+  notes                 String?
+  failureReason         String?
   recommendationSnapshot Json?
   payload               Json?
   
@@ -363,6 +386,7 @@ model RecoveryAction {
   updatedAt             DateTime              @updatedAt
   
   outcomes              RecoveryOutcome[]
+  executions            RecoveryExecution[]
 
   @@index([tenantId])
   @@index([opportunityId])
@@ -378,19 +402,28 @@ model RecoveryOutcome {
   opportunity           RecoveryOpportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   actionId              String?
   action                RecoveryAction?       @relation(fields: [actionId], references: [id], onDelete: SetNull)
+  executionId           String?
+  execution             RecoveryExecution?    @relation(fields: [executionId], references: [id], onDelete: SetNull)
+  webhookEventId        String?
+  webhookEvent          WebhookEvent?         @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
   
   type                  OutcomeType
   recoveredAmountMinor  Int
+  unrecoveredAmountMinor Int                  @default(0)
   currency              String                @default("INR")
   provider              String?
   providerReference     String?
+  reason                String?
   details               Json?
+  metadata              Json?
   
   occurredAt            DateTime              @default(now())
 
   @@index([tenantId])
   @@index([opportunityId])
   @@index([actionId])
+  @@index([executionId])
+  @@index([webhookEventId])
 }
 
 model WebhookEvent {
@@ -403,6 +436,8 @@ model WebhookEvent {
   eventType             String
   payload               Json
   
+  outcomes              RecoveryOutcome[]
+  
   processedAt           DateTime?
   createdAt             DateTime              @default(now())
 
@@ -410,3 +445,145 @@ model WebhookEvent {
   @@index([tenantId])
   @@index([createdAt])
 }
+
+model RecoveryPolicy {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name                  String                @default("Default Recovery Policy")
+  enabled               Boolean               @default(true)
+  autoExecutionEnabled  Boolean               @default(true)
+  
+  actionType            ActionType?
+  maxAmountMinor        Int                   @default(1000000) // ₹10,000 threshold for automatic execution
+  minAmountMinor        Int                   @default(0)
+  
+  allowedPriorities     PriorityLevel[]       @default([LOW, MEDIUM, HIGH, CRITICAL])
+  allowedActions        ActionType[]          @default([RETRY_PAYMENT, SEND_PAYMENT_REMINDER, ESCALATE, CONTACT_CUSTOMER, RECOVER_CHECKOUT, RETRY_SUBSCRIPTION])
+  allowedProviders      String[]              @default(["simulation", "resend", "payment_retry"])
+  
+  maxAttempts           Int                   @default(3)
+  cooldownSeconds       Int                   @default(3600) // 1 hour cooldown between attempts
+  requiresApproval      Boolean               @default(false)
+  
+  version               Int                   @default(1)
+  createdBy             String?
+  updatedBy             String?
+  
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([actionType])
+  @@index([enabled])
+  @@index([autoExecutionEnabled])
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String?
+  memberships  Membership[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([email])
+}
+
+model Membership {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role      MembershipRole @default(MEMBER)
+
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([userId, tenantId])
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model RecoveryExecution {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId         String
+  opportunity           RecoveryOpportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  recoveryActionId      String
+  recoveryAction        RecoveryAction        @relation(fields: [recoveryActionId], references: [id], onDelete: Cascade)
+
+  actionType            ActionType
+  provider              String
+  status                ExecutionStatus       @default(QUEUED)
+  idempotencyKey        String
+  attemptCount          Int                   @default(1)
+  maxAttempts           Int                   @default(3)
+  externalReference     String?
+  failureReason         String?
+  metadata              Json?
+
+  startedAt             DateTime?
+  completedAt           DateTime?
+  claimedAt             DateTime?
+  claimedBy             String?
+  heartbeatAt           DateTime?
+  
+  requiresReview        Boolean               @default(false)
+  errorCategory         String?
+  policyVersion         Int?
+  
+  outcomes              RecoveryOutcome[]
+  
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId])
+  @@index([opportunityId])
+  @@index([recoveryActionId])
+  @@index([status])
+  @@index([claimedAt])
+  @@index([requiresReview])
+  @@index([errorCategory])
+  @@index([createdAt])
+}
+
+model AuditEvent {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  opportunityId         String?
+  opportunity           RecoveryOpportunity?  @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  actorId               String?
+  actorEmail            String?
+  actorRole             MembershipRole?
+  
+  eventType             String
+  entityType            String
+  entityId              String?
+  metadata              Json?
+
+  timestamp             DateTime              @default(now())
+
+  @@index([tenantId])
+  @@index([opportunityId])
+  @@index([eventType])
+  @@index([entityType])
+  @@index([timestamp])
+}
+

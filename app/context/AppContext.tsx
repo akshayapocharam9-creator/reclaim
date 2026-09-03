@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { RecoveryOpportunity, AgentActivity, AppSettings, RecoveryStatus, Integration, IntegrationStatus } from '../types';
-import { rawEvents } from '../lib/demo-events';
-import { RevenueIntelligenceEngine } from '../lib/revenue-intelligence';
 import { ReclaimAgent } from '../lib/agent';
 
 interface AppContextType {
@@ -16,19 +17,20 @@ interface AppContextType {
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   updateIntegration: (id: string, updates: Partial<Integration>) => void;
   decision: { opportunity: RecoveryOpportunity, explanation: string } | null;
+  analytics: any | null;
+  auditEvents: any[];
+  refreshData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const intelligenceEngine = useMemo(() => new RevenueIntelligenceEngine(), []);
   const reclaimAgent = useMemo(() => new ReclaimAgent(), []);
 
-  const initialOpportunities = useMemo(() => intelligenceEngine.analyzeEvents(rawEvents), [intelligenceEngine]);
-  const initialActivities = useMemo(() => reclaimAgent.generateActivities(initialOpportunities), [reclaimAgent, initialOpportunities]);
-
-  const [opportunities, setOpportunities] = useState<RecoveryOpportunity[]>(initialOpportunities);
-  const [activities, setActivities] = useState<AgentActivity[]>(initialActivities);
+  const [opportunities, setOpportunities] = useState<RecoveryOpportunity[]>([]);
+  const [activities, setActivities] = useState<AgentActivity[]>([]);
+  const [analytics, setAnalytics] = useState<any | null>(null);
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
     approvalMode: 'manual',
     notifications: 'important',
@@ -46,11 +48,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [isLoaded, setIsLoaded] = useState(false);
 
+  const fetchAllData = async () => {
+    try {
+      const [oppRes, analyticsRes, auditRes] = await Promise.all([
+        fetch('/api/revenue/opportunities'),
+        fetch('/api/revenue/analytics'),
+        fetch('/api/revenue/audit?limit=20')
+      ]);
+
+      if (oppRes.ok) {
+        const data = await oppRes.json();
+        setOpportunities(data.opportunities || []);
+        if (data.opportunities && data.opportunities.length > 0) {
+          setActivities(reclaimAgent.generateActivities(data.opportunities));
+        } else {
+          setActivities([]);
+        }
+      }
+
+      if (analyticsRes.ok) {
+        const aData = await analyticsRes.json();
+        setAnalytics(aData);
+      }
+
+      if (auditRes.ok) {
+        const auData = await auditRes.json();
+        setAuditEvents(auData.auditEvents || []);
+      }
+    } catch (error) {
+      console.error('Failed to load live pipeline data:', error);
+    } finally {
+      setIsLoaded(true);
+    }
+  };
+
+  // Fetch live intelligence from backend pipeline
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  // Load local settings
   useEffect(() => {
     const savedSettings = localStorage.getItem('reclaim_settings');
     if (savedSettings) {
       try {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSettings(JSON.parse(savedSettings));
       } catch {
         console.error('Failed to parse settings');
@@ -62,7 +103,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const parsed = JSON.parse(savedIntegrations) as Integration[];
         // Merge saved statuses into base integrations
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIntegrations(prev => prev.map(i => {
           const s = parsed.find(p => p.id === i.id);
           return s ? { ...i, status: s.status, lastSync: s.lastSync } : i;
@@ -157,6 +197,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateSettings,
       updateIntegration,
       decision,
+      analytics,
+      auditEvents,
+      refreshData: fetchAllData
     }}>
       {isLoaded ? children : <div className="p-8 flex justify-center text-gray-500">Loading workspace...</div>}
     </AppContext.Provider>
