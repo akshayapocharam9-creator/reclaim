@@ -10,7 +10,9 @@ export interface SessionPayload {
   exp: number
 }
 
-const SESSION_SECRET = process.env.AUTH_SECRET || process.env.RAZORPAY_WEBHOOK_SECRET || 'reclaim-secure-auth-secret-2026'
+function getSessionSecret(): string {
+  return process.env.AUTH_SECRET || process.env.RAZORPAY_WEBHOOK_SECRET || 'reclaim-secure-auth-secret-2026'
+}
 export const SESSION_COOKIE_NAME = 'reclaim_session'
 
 /**
@@ -24,7 +26,7 @@ export function createSessionToken(payload: Omit<SessionPayload, 'exp'>, expires
 
   const payloadEncoded = Buffer.from(JSON.stringify(fullPayload)).toString('base64url')
   const signature = crypto
-    .createHmac('sha256', SESSION_SECRET)
+    .createHmac('sha256', getSessionSecret())
     .update(payloadEncoded)
     .digest('base64url')
 
@@ -43,7 +45,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
   const [payloadEncoded, signature] = parts
 
   const expectedSignature = crypto
-    .createHmac('sha256', SESSION_SECRET)
+    .createHmac('sha256', getSessionSecret())
     .update(payloadEncoded)
     .digest('base64url')
 

@@ -38,15 +38,21 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('[API_AUTH_SIGNIN_ERROR]', error)
 
-    if (error?.code === 'P1001' || error?.name === 'PrismaClientInitializationError') {
-      return NextResponse.json({ error: 'Database connection failed. Please verify DATABASE_URL in Vercel environment variables.' }, { status: 503 })
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json({
+        error: 'Database configuration missing: DATABASE_URL is not set in Vercel environment variables.'
+      }, { status: 503 })
     }
 
-    const rawMessage = error?.message || ''
-    const safeMessage = rawMessage && !rawMessage.toLowerCase().includes('password') && !rawMessage.toLowerCase().includes('secret')
-      ? rawMessage
-      : 'Internal authentication error'
+    let message = error?.message || 'Database authentication error'
+    message = message.replace(/(postgresql?:\/\/[^:]+:)[^@]+(@)/gi, '$1[REDACTED]$2')
 
-    return NextResponse.json({ error: safeMessage }, { status: 500 })
+    if (error?.code?.startsWith('P1') || error?.name?.includes('Initialization') || message.includes('DATABASE_URL') || message.includes('database server')) {
+      return NextResponse.json({
+        error: `Database connection failed (${error?.code || 'CONN_ERROR'}): Please check DATABASE_URL in Vercel. Details: ${message}`
+      }, { status: 503 })
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
