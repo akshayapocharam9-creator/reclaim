@@ -4,6 +4,8 @@ import prisma from '../../../lib/prisma'
 import { validateEnvironment } from '../../../lib/env'
 import { providerHealthMonitor } from '../../../lib/execution/health'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const envValidation = validateEnvironment()
 
