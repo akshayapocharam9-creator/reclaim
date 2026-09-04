@@ -3,6 +3,7 @@ import prisma from '../prisma'
 import { ActionStatus, ActionType, OpportunityStatus, OutcomeType } from '@prisma/client'
 import { generateRecommendation } from './engine'
 import { logAuditEvent } from '../audit/audit-service'
+import { stopActiveCadenceForOpportunity } from '../recovery/dunning-cadence-service'
 
 export interface ExecuteActionResult {
   success: boolean
@@ -154,6 +155,13 @@ export async function dismissOpportunity(params: {
     }
   })
 
+  // Immediately stop any active dunning cadence for this tenant + opportunity
+  await stopActiveCadenceForOpportunity({
+    tenantId,
+    opportunityId: opportunity.id,
+    terminalStatus: OpportunityStatus.DISMISSED
+  })
+
   await logAuditEvent({
     tenantId,
     opportunityId: opportunity.id,
@@ -243,6 +251,13 @@ export async function markOpportunityRecovered(params: {
   }
 
   const [updatedOpportunity, outcome, updatedAction] = await prisma.$transaction(operations)
+
+  // Immediately stop any active dunning cadence for this tenant + opportunity
+  await stopActiveCadenceForOpportunity({
+    tenantId,
+    opportunityId: opportunity.id,
+    terminalStatus: OpportunityStatus.RECOVERED
+  })
 
   await logAuditEvent({
     tenantId,
@@ -336,6 +351,13 @@ export async function markOpportunityFailed(params: {
   }
 
   const [updatedOpportunity, _createdOutcome, updatedAction] = await prisma.$transaction(operations)
+
+  // Immediately stop any active dunning cadence for this tenant + opportunity
+  await stopActiveCadenceForOpportunity({
+    tenantId,
+    opportunityId: opportunity.id,
+    terminalStatus: OpportunityStatus.FAILED
+  })
 
   await logAuditEvent({
     tenantId,

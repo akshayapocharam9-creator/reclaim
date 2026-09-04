@@ -127,6 +127,128 @@ async function runTests() {
   
   console.log('✅ Execution aborted safely when opportunity was already RECOVERED')
 
+  // 8. Test immediate cadence completion via markOpportunityRecovered
+  const { markOpportunityRecovered, dismissOpportunity } = await import('../recovery-agent/workflow')
+  const { reconcileRecoveryOutcome } = await import('../execution/outcome-reconciler')
+
+  const opp4 = await prisma.recoveryOpportunity.create({
+    data: {
+      tenantId: tenant.id,
+      type: 'PAYMENT_FAILURE',
+      status: 'IN_PROGRESS',
+      amountAtRiskMinor: 2000,
+      recoverableAmountMinor: 2000,
+      priority: 'HIGH',
+      score: 85,
+      reason: 'Test immediate stop on markOpportunityRecovered',
+      evidence: {}
+    }
+  })
+
+  const sch4 = await scheduleDunningCadence(tenant.id, opp4.id)
+  if (!sch4.success || !sch4.cadenceId) throw new Error('Failed to schedule cadence 4')
+
+  const cad4Before = await prisma.dunningCadence.findUnique({ where: { id: sch4.cadenceId } })
+  if (cad4Before?.status !== CadenceStatus.SCHEDULED) throw new Error('Expected cadence 4 to be SCHEDULED initially')
+
+  // Mark recovered
+  const recoverRes = await markOpportunityRecovered({
+    tenantId: tenant.id,
+    opportunityId: opp4.id
+  })
+  if (!recoverRes.success) throw new Error('Failed to mark opportunity recovered')
+
+  const cad4After = await prisma.dunningCadence.findUnique({ where: { id: sch4.cadenceId } })
+  if (cad4After?.status !== CadenceStatus.COMPLETED) {
+    throw new Error(`Expected cadence 4 to be COMPLETED after recovery, got ${cad4After?.status}`)
+  }
+  if (!cad4After.completedAt) throw new Error('Expected completedAt to be populated on cadence 4')
+  console.log('✅ markOpportunityRecovered immediately completes active dunning cadence with completedAt')
+
+  // 9. Test immediate cadence completion via reconcileRecoveryOutcome
+  const opp5 = await prisma.recoveryOpportunity.create({
+    data: {
+      tenantId: tenant.id,
+      type: 'PAYMENT_FAILURE',
+      status: 'IN_PROGRESS',
+      amountAtRiskMinor: 3000,
+      recoverableAmountMinor: 3000,
+      priority: 'HIGH',
+      score: 80,
+      reason: 'Test immediate stop on reconcileRecoveryOutcome',
+      evidence: {}
+    }
+  })
+
+  const sch5 = await scheduleDunningCadence(tenant.id, opp5.id)
+  if (!sch5.success || !sch5.cadenceId) throw new Error('Failed to schedule cadence 5')
+
+  const reconcileRes = await reconcileRecoveryOutcome({
+    tenantId: tenant.id,
+    opportunityId: opp5.id,
+    outcomeType: 'SUCCESS',
+    recoveredAmountMinor: 3000,
+    reason: 'Verified gateway capture'
+  })
+  if (!reconcileRes.success) throw new Error('Failed to reconcile outcome')
+
+  const cad5After = await prisma.dunningCadence.findUnique({ where: { id: sch5.cadenceId } })
+  if (cad5After?.status !== CadenceStatus.COMPLETED) {
+    throw new Error(`Expected cadence 5 to be COMPLETED after outcome reconciliation, got ${cad5After?.status}`)
+  }
+  if (!cad5After.completedAt) throw new Error('Expected completedAt to be populated on cadence 5')
+  console.log('✅ reconcileRecoveryOutcome immediately completes active dunning cadence')
+
+  // 10. Test immediate cadence completion on DISMISSED
+  const opp6 = await prisma.recoveryOpportunity.create({
+    data: {
+      tenantId: tenant.id,
+      type: 'PAYMENT_FAILURE',
+      status: 'DETECTED',
+      amountAtRiskMinor: 1500,
+      recoverableAmountMinor: 1500,
+      priority: 'MEDIUM',
+      score: 70,
+      reason: 'Test immediate stop on dismiss',
+      evidence: {}
+    }
+  })
+
+  const sch6 = await scheduleDunningCadence(tenant.id, opp6.id)
+  if (!sch6.success || !sch6.cadenceId) throw new Error('Failed to schedule cadence 6')
+
+  await dismissOpportunity({
+    tenantId: tenant.id,
+    opportunityId: opp6.id,
+    reason: 'Dismissed by test'
+  })
+
+  const cad6After = await prisma.dunningCadence.findUnique({ where: { id: sch6.cadenceId } })
+  if (cad6After?.status !== CadenceStatus.COMPLETED) {
+    throw new Error(`Expected cadence 6 to be COMPLETED after dismiss, got ${cad6After?.status}`)
+  }
+  console.log('✅ dismissOpportunity immediately completes active dunning cadence')
+
+  // Cleanup test records created in this run
+  await prisma.dunningCadence.deleteMany({
+    where: { opportunityId: { in: [opp.id, opp2.id, opp3.id, opp4.id, opp5.id, opp6.id] } }
+  })
+  await prisma.recoveryOutcome.deleteMany({
+    where: { opportunityId: { in: [opp.id, opp2.id, opp3.id, opp4.id, opp5.id, opp6.id] } }
+  })
+  await prisma.recoveryExecution.deleteMany({
+    where: { opportunityId: { in: [opp.id, opp2.id, opp3.id, opp4.id, opp5.id, opp6.id] } }
+  })
+  await prisma.recoveryAction.deleteMany({
+    where: { opportunityId: { in: [opp.id, opp2.id, opp3.id, opp4.id, opp5.id, opp6.id] } }
+  })
+  await prisma.recoveryToken.deleteMany({
+    where: { opportunityId: { in: [opp.id, opp2.id, opp3.id, opp4.id, opp5.id, opp6.id] } }
+  })
+  await prisma.recoveryOpportunity.deleteMany({
+    where: { id: { in: [opp.id, opp2.id, opp3.id, opp4.id, opp5.id, opp6.id] } }
+  })
+
   console.log('--- ALL TESTS PASSED ---')
   process.exit(0)
 }

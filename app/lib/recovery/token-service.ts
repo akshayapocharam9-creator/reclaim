@@ -4,6 +4,7 @@ import prisma from '../prisma'
 import { OpportunityStatus, OutcomeType, ActionStatus, RecoveryToken, RecoveryOpportunity, Tenant } from '@prisma/client'
 import { logAuditEvent } from '../audit/audit-service'
 import { ProviderRegistry } from '../execution/registry'
+import { stopActiveCadenceForOpportunity } from './dunning-cadence-service'
 
 export interface CreateRecoveryTokenParams {
   tenantId: string
@@ -469,7 +470,15 @@ export async function resolvePaymentWithToken(
       }
     })
 
-    // 5. Log audit event
+    // 5. Immediately stop any active dunning cadence transactionally
+    await stopActiveCadenceForOpportunity({
+      tenantId: tenant!.id,
+      opportunityId: opportunity!.id,
+      terminalStatus: OpportunityStatus.RECOVERED,
+      tx
+    })
+
+    // 6. Log audit event
     await logAuditEvent({
       tenantId: tenant!.id,
       opportunityId: opportunity!.id,

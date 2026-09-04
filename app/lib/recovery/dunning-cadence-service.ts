@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from '../prisma'
-import { CadenceStatus, OpportunityStatus, ActionType, ActionStatus, ExecutionStatus, MembershipRole } from '@prisma/client'
+import { Prisma, CadenceStatus, OpportunityStatus, ActionType, ActionStatus, ExecutionStatus, MembershipRole } from '@prisma/client'
 import { logAuditEvent } from '../audit/audit-service'
 import { createRecoveryToken } from './token-service'
 
@@ -254,4 +255,51 @@ export async function processDueCadences(tenantIdFilter?: string): Promise<{
   }
 
   return { processed, failed }
+}
+
+/**
+ * Stops and marks COMPLETED any active/scheduled dunning cadence for an opportunity
+ * when it reaches a terminal status (RECOVERED, FAILED, DISMISSED).
+ * Supports optional Prisma transaction client for atomic state transitions.
+ */
+export async function stopActiveCadenceForOpportunity(params: {
+  tenantId: string
+  opportunityId: string
+  terminalStatus: OpportunityStatus
+  tx?: Prisma.TransactionClient | typeof prisma
+}): Promise<void> {
+  const { tenantId, opportunityId, terminalStatus, tx } = params
+  const client = (tx || prisma) as any
+  const now = new Date()
+
+  // Find active scheduled or processing cadence for this tenant + opportunity
+  const activeCadence = await client.dunningCadence.findFirst({
+    where: {
+      tenantId,
+      opportunityId,
+      status: { in: [CadenceStatus.SCHEDULED, CadenceStatus.PROCESSING] }
+    }
+  })
+
+  if (!activeCadence) {
+    return
+  }
+
+  const existingMeta = typeof activeCadence.metadata === 'object' && activeCadence.metadata !== null
+    ? (activeCadence.metadata as Record<string, unknown>)
+    : {}
+
+  await client.dunningCadence.update({
+    where: { id: activeCadence.id },
+    data: {
+      status: CadenceStatus.COMPLETED,
+      completedAt: now,
+      metadata: {
+        ...existingMeta,
+        stoppedReason: `Opportunity reached terminal state: ${terminalStatus}`,
+        terminalStatus,
+        stoppedAt: now.toISOString()
+      }
+    }
+  })
 }

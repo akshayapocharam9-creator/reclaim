@@ -2,6 +2,7 @@
 import prisma from '../prisma'
 import { ActionStatus, OpportunityStatus, OutcomeType, MembershipRole } from '@prisma/client'
 import { logAuditEvent } from '../audit/audit-service'
+import { stopActiveCadenceForOpportunity } from '../recovery/dunning-cadence-service'
 
 export interface ReconcileOutcomeParams {
   tenantId: string
@@ -143,6 +144,15 @@ export async function reconcileRecoveryOutcome(params: ReconcileOutcomeParams): 
   }
 
   const [createdOutcome, updatedOpportunity] = await prisma.$transaction(operations)
+
+  // Immediately stop any active dunning cadence for this tenant + opportunity if terminal
+  if (outcomeType === OutcomeType.SUCCESS || outcomeType === OutcomeType.FAILURE) {
+    await stopActiveCadenceForOpportunity({
+      tenantId,
+      opportunityId: opportunity.id,
+      terminalStatus: outcomeType === OutcomeType.SUCCESS ? OpportunityStatus.RECOVERED : OpportunityStatus.FAILED
+    })
+  }
 
   // 3. Log comprehensive immutable audit event
   await logAuditEvent({

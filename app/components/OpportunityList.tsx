@@ -839,7 +839,7 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
                           {actionState?.hasActivePortal ? 'Active & Unexpired' : 'Not Generated / Inactive'}
                         </span>
                       </div>
-                      {actionState?.dunningCadence?.scheduledAt && (
+                      {actionState?.dunningCadence?.scheduledAt && actionState.dunningCadence.status === 'SCHEDULED' && currentStatus !== 'RECOVERED' && currentStatus !== 'FAILED' && currentStatus !== 'DISMISSED' && (
                         <div className="col-span-2">
                           <span className="font-medium text-gray-800 dark:text-gray-200">Next Scheduled Run: </span>
                           <span className="font-mono text-gray-900 dark:text-gray-100">
