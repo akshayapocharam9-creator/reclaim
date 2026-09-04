@@ -22,7 +22,7 @@ export default function RecoveriesPage() {
         <MetricCard title="Total Opportunities" value={opportunities.length.toString()} />
         <MetricCard title="Approved Actions" value={activeOpps.length.toString()} />
         <MetricCard title="Queued" value={queuedCount.toString()} />
-        <MetricCard title="Recovered" value={`$${recoveredAmount.toLocaleString()}`} />
+        <MetricCard title="Recovered" value={`₹${recoveredAmount.toLocaleString()}`} />
       </div>
       
       <div className="bg-white dark:bg-[#09090b] shadow-sm border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden mt-8">
@@ -56,7 +56,7 @@ export default function RecoveriesPage() {
                 return (
                 <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-[#18181b] transition-colors">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-200">{o.customerName}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">${o.amount.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">₹{o.amount.toLocaleString()}</td>
                   <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{o.analysis?.recommendedAction || 'Contact Customer'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-500">
                     {new Date(o.createdAt).toLocaleDateString()}

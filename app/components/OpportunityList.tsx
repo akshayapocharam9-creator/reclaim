@@ -420,7 +420,7 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-3 mb-1">
                     <span className="font-semibold text-gray-900 dark:text-white text-lg tracking-tight">
-                      ${opp.amount.toLocaleString()}
+                      ₹{opp.amount.toLocaleString()}
                     </span>
                     <span className="text-sm font-medium text-gray-900 dark:text-gray-200">{opp.customerName}</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold border ${getPriorityColor(opp.priority)}`}>
@@ -508,7 +508,7 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
               <div className="flex items-end justify-between mb-8">
                 <div>
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{selectedOpp.customerName}</p>
-                  <h4 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white">${selectedOpp.amount.toLocaleString()}</h4>
+                  <h4 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-white">₹{selectedOpp.amount.toLocaleString()}</h4>
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex items-center gap-2">
@@ -624,7 +624,7 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
                           <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-1">Expected Recovery</p>
                             <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                              ${(recommendation.expectedRecoveryAmountMinor / 100).toLocaleString()}
+                              ₹{(recommendation.expectedRecoveryAmountMinor / 100).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -888,7 +888,7 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
                   <div className="bg-white/90 dark:bg-black/40 p-3 rounded-lg border border-indigo-100 dark:border-indigo-900/50 space-y-1 font-mono text-[11px]">
                     <div><span className="font-semibold text-gray-700 dark:text-gray-300">Action:</span> {actionState?.latestAction?.type || recommendation?.recommendedAction || 'RETRY_PAYMENT'}</div>
                     <div><span className="font-semibold text-gray-700 dark:text-gray-300">Customer / Ref:</span> {selectedOpp.customerName}</div>
-                    <div><span className="font-semibold text-gray-700 dark:text-gray-300">Amount:</span> ${(selectedOpp.amount).toLocaleString()}</div>
+                    <div><span className="font-semibold text-gray-700 dark:text-gray-300">Amount:</span> ₹{(selectedOpp.amount).toLocaleString()}</div>
                     <div><span className="font-semibold text-gray-700 dark:text-gray-300">Provider:</span> {actionState?.latestAction?.channel || recommendation?.suggestedChannel || 'Simulation Audit Provider'}</div>
                     <div><span className="font-semibold text-gray-700 dark:text-gray-300">Expected Effect:</span> Dispatches recovery workflow safely to provider with idempotent tracking.</div>
                   </div>

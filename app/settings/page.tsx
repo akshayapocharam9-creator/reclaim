@@ -194,7 +194,7 @@ export default function SettingsPage() {
           <div>
             <p className="font-semibold text-sm">Automated Dunning Cadence Defaults</p>
             <p className="text-gray-600 dark:text-gray-400 mt-0.5">
-              Engine cadence progresses across Day 1 (Initial Notice) $\rightarrow$ Day 3 (+2 days) $\rightarrow$ Day 7 (+4 days) with dynamic single-use token generation.
+              Engine cadence progresses across Day 1 (Initial Notice) → Day 3 (+2 days) → Day 7 (+4 days) with dynamic single-use token generation.
             </p>
           </div>
         </div>

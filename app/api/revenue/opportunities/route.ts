@@ -32,27 +32,32 @@ export async function GET(request: NextRequest) {
     })
 
     // 2. Map to the shape expected by the frontend Dashboard
-    const mappedOpportunities = opportunities.map(opp => ({
-      id: opp.id,
-      eventId: opp.id, // Stable unique reference for UI
-      customerName: opp.customer?.name || 'Unknown Customer',
-      amount: opp.amountAtRiskMinor / 100, // Convert to major units for frontend
-      priority: opp.priority,
-      analysis: {
-        problem: opp.type,
-        financialImpact: opp.recoverableAmountMinor / 100,
-        reasoning: opp.reason,
-        recoveryProbability: opp.confidenceScore || 0,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        recommendedAction: (opp.recommendation as any)?.action || 'Review Internally'
-      },
-      status: opp.status ? (opp.status === 'DETECTED' ? 'pending' : opp.status.toLowerCase()) : 'pending',
-      createdAt: opp.createdAt ? (typeof opp.createdAt === 'string' ? opp.createdAt : opp.createdAt.toISOString()) : new Date().toISOString(),
-      dunningStep: opp.dunningCadence ? opp.dunningCadence.currentStep : 0,
-      dunningStatus: opp.dunningCadence ? opp.dunningCadence.status : 'NONE',
-      dunningScheduledAt: opp.dunningCadence?.scheduledAt ? opp.dunningCadence.scheduledAt.toISOString() : null,
-      hasRecoveryPortal: opp.recoveryTokens.length > 0
-    }))
+    const mappedOpportunities = opportunities.map(opp => {
+      const isTerminal = opp.status === 'RECOVERED' || opp.status === 'FAILED' || opp.status === 'DISMISSED'
+      return {
+        id: opp.id,
+        eventId: opp.id, // Stable unique reference for UI
+        customerName: opp.customer?.name || 'Unknown Customer',
+        amount: opp.amountAtRiskMinor / 100, // Convert to major units for frontend
+        priority: opp.priority,
+        analysis: {
+          problem: opp.type,
+          financialImpact: opp.recoverableAmountMinor / 100,
+          reasoning: opp.reason,
+          recoveryProbability: opp.confidenceScore || 0,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          recommendedAction: (opp.recommendation as any)?.action || 'Review Internally'
+        },
+        status: opp.status ? (opp.status === 'DETECTED' ? 'pending' : opp.status.toLowerCase()) : 'pending',
+        createdAt: opp.createdAt ? (typeof opp.createdAt === 'string' ? opp.createdAt : opp.createdAt.toISOString()) : new Date().toISOString(),
+        dunningStep: opp.dunningCadence ? opp.dunningCadence.currentStep : 0,
+        dunningStatus: opp.dunningCadence ? opp.dunningCadence.status : 'NONE',
+        dunningScheduledAt: (!isTerminal && opp.dunningCadence?.status === 'SCHEDULED' && opp.dunningCadence?.scheduledAt)
+          ? opp.dunningCadence.scheduledAt.toISOString()
+          : null,
+        hasRecoveryPortal: !isTerminal && opp.recoveryTokens.length > 0
+      }
+    })
 
     // 3. Construct summary aggregation
     const totalAmountAtRiskMinor = opportunities.reduce((acc, o) => acc + o.amountAtRiskMinor, 0)

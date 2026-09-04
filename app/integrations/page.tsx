@@ -307,7 +307,7 @@ export default function IntegrationsPage() {
             <div className="bg-gray-50 dark:bg-[#121214] p-5 rounded-lg border border-gray-200 dark:border-gray-800 space-y-3 text-xs text-gray-600 dark:text-gray-300">
               <p className="font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Razorpay Dashboard Setup Steps:</p>
               <ol className="list-decimal pl-4 space-y-1.5 leading-relaxed">
-                <li>Log in to your <strong>Razorpay Dashboard</strong> $\rightarrow$ Navigate to <strong>Settings $\rightarrow$ Webhooks</strong>.</li>
+                <li>Log in to your <strong>Razorpay Dashboard</strong> → Navigate to <strong>Settings → Webhooks</strong>.</li>
                 <li>Click <strong>+ Add New Webhook</strong>.</li>
                 <li>Paste the Webhook URL copied above into the <strong>Webhook URL</strong> field.</li>
                 <li>Enter your custom secret into the <strong>Secret</strong> field (and set it as <code className="bg-gray-200 dark:bg-gray-800 px-1 py-0.5 rounded">RAZORPAY_WEBHOOK_SECRET</code> in Vercel).</li>

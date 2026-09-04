@@ -83,8 +83,8 @@ export default function CustomersPage() {
                 return (
                   <tr key={i} onClick={() => setSelectedCustomer(c)} className="hover:bg-gray-50 dark:hover:bg-[#18181b] transition-colors cursor-pointer">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-200">{c.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">${c.totalRevenue.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">${c.atRisk.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">₹{c.totalRevenue.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">₹{c.atRisk.toLocaleString()}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold border ${getRiskColor(riskLevel)}`}>
                         {riskLevel}
@@ -115,11 +115,11 @@ export default function CustomersPage() {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="p-4 bg-gray-50 dark:bg-[#18181b] rounded-lg border border-gray-100 dark:border-gray-800">
                   <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Revenue</p>
-                  <p className="text-xl font-medium text-gray-900 dark:text-gray-100">${selectedCustomer.totalRevenue.toLocaleString()}</p>
+                  <p className="text-xl font-medium text-gray-900 dark:text-gray-100">₹{selectedCustomer.totalRevenue.toLocaleString()}</p>
                 </div>
                 <div className="p-4 bg-gray-50 dark:bg-[#18181b] rounded-lg border border-gray-100 dark:border-gray-800">
                   <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">At Risk</p>
-                  <p className="text-xl font-medium text-gray-900 dark:text-gray-100">${selectedCustomer.atRisk.toLocaleString()}</p>
+                  <p className="text-xl font-medium text-gray-900 dark:text-gray-100">₹{selectedCustomer.atRisk.toLocaleString()}</p>
                 </div>
               </div>
 
@@ -128,7 +128,7 @@ export default function CustomersPage() {
                 <ul className="space-y-3">
                   {selectedCustomer.opportunities.map((opp) => (
                     <li key={opp.id} className="text-sm border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                      <span className="font-medium text-gray-900 dark:text-gray-200">${opp.amount.toLocaleString()}</span> — {opp.analysis.problem}
+                      <span className="font-medium text-gray-900 dark:text-gray-200">₹{opp.amount.toLocaleString()}</span> — {opp.analysis.problem}
                       <br/>
                       <span className="text-gray-500 text-xs mt-1 block">Status: {opp.status.replace(/_/g, ' ')}</span>
                     </li>

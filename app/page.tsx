@@ -246,8 +246,8 @@ export default function Home() {
         <div className="xl:col-span-2 space-y-8">
           
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <MetricCard title="Revenue At Risk" value={`$${totalAtRisk.toLocaleString()}`} variant="primary" />
-            <MetricCard title="Recovered Revenue" value={`$${totalRecovered.toLocaleString()}`} />
+            <MetricCard title="Revenue At Risk" value={`₹${totalAtRisk.toLocaleString()}`} variant="primary" />
+            <MetricCard title="Recovered Revenue" value={`₹${totalRecovered.toLocaleString()}`} />
             <MetricCard title="Active Recoveries" value={approvedCount.toString()} />
             <MetricCard title="Active Dunning" value={activeDunningCount.toString()} />
             <MetricCard title="Recovery Rate" value={`${recoveryRate}%`} />
