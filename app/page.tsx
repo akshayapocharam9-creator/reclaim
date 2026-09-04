@@ -102,10 +102,14 @@ export default function Home() {
     }
   };
 
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'pending'>('all');
+
   // Compute metrics from database analytics where available, fallback to opportunities list
   const pendingOpps = opportunities.filter(o => o.status === 'queued_for_recovery' || (o.status as string) === 'detected' || (o.status as string) === 'pending');
   const filteredPending = pendingOpps.filter(o => priorityFilter === 'all' || o.priority === priorityFilter);
-  
+  const displayedOpps = (scopeFilter === 'pending' ? pendingOpps : opportunities)
+    .filter(o => priorityFilter === 'all' || o.priority === priorityFilter);
+
   const totalAtRisk = analytics?.totals?.totalAmountAtRiskMinor != null
     ? Math.round(analytics.totals.totalAmountAtRiskMinor / 100)
     : filteredPending.reduce((sum, opp) => sum + opp.amount, 0);
@@ -126,12 +130,12 @@ export default function Home() {
     ? analytics.executions.executionSuccessRate
     : 100;
 
-  // Visual Pipeline Data
+  // Visual Pipeline Data (Cumulative Funnel Throughput)
   const pipeline = {
     detected: opportunities.length,
     analyzed: opportunities.filter(o => o.status !== 'dismissed').length,
-    recommended: pendingOpps.length,
-    approved: approvedCount,
+    recommended: opportunities.filter(o => o.status !== 'dismissed').length,
+    approved: opportunities.filter(o => o.status === 'queued_for_recovery' || o.status === 'in_progress' || o.status === 'recovered').length,
     recovered: opportunities.filter(o => o.status === 'recovered').length,
   };
 
@@ -375,20 +379,53 @@ export default function Home() {
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Priority Opportunities & Execution</h2>
-              <select 
-                value={priorityFilter}
-                onChange={e => setPriorityFilter(e.target.value)}
-                className="px-3 py-1.5 bg-white dark:bg-[#18181b] border border-gray-200 dark:border-gray-800 rounded-md text-xs font-medium focus:outline-none focus:ring-2 focus:ring-gray-900"
-              >
-                <option value="all">All Priorities</option>
-                <option value="CRITICAL">Critical</option>
-                <option value="HIGH">High</option>
-              </select>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Priority Opportunities & Execution</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Continuous automated leak detection and recovery control plane.</p>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <div className="flex bg-gray-100 dark:bg-[#18181b] p-0.5 rounded-lg border border-gray-200 dark:border-gray-800 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setScopeFilter('all')}
+                    className={`px-3 py-1 rounded-md font-medium transition-all ${
+                      scopeFilter === 'all'
+                        ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs font-semibold'
+                        : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    All ({opportunities.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScopeFilter('pending')}
+                    className={`px-3 py-1 rounded-md font-medium transition-all ${
+                      scopeFilter === 'pending'
+                        ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs font-semibold'
+                        : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    Action Needed ({pendingOpps.length})
+                  </button>
+                </div>
+                
+                <select 
+                  value={priorityFilter}
+                  onChange={e => setPriorityFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-white dark:bg-[#18181b] border border-gray-200 dark:border-gray-800 rounded-md text-xs font-medium focus:outline-none focus:ring-2 focus:ring-gray-900"
+                >
+                  <option value="all">All Priorities</option>
+                  <option value="CRITICAL">Critical</option>
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+              </div>
             </div>
             <OpportunityList 
-              opportunities={filteredPending} 
+              opportunities={displayedOpps} 
               onApprove={approveOpportunity} 
               onDismiss={dismissOpportunity}
             />

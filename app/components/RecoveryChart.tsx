@@ -44,8 +44,8 @@ export default function RecoveryChart({ data, dateRange }: RecoveryChartProps) {
                 {isHovered && (
                   <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs rounded shadow-xl p-2 z-50 min-w-[120px] pointer-events-none">
                     <p className="font-bold border-b border-gray-700 dark:border-gray-200 pb-1 mb-1">{point.label}</p>
-                    <p className="flex justify-between"><span>At Risk:</span> <span className="font-semibold">${point.atRisk.toLocaleString()}</span></p>
-                    <p className="flex justify-between"><span>Recovered:</span> <span className="font-semibold">${point.recovered.toLocaleString()}</span></p>
+                    <p className="flex justify-between"><span>At Risk:</span> <span className="font-semibold">₹{point.atRisk.toLocaleString()}</span></p>
+                    <p className="flex justify-between"><span>Recovered:</span> <span className="font-semibold">₹{point.recovered.toLocaleString()}</span></p>
                   </div>
                 )}
                 
