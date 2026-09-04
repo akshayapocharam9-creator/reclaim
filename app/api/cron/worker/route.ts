@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { claimNextQueuedExecution, recoverStaleExecutions } from '../../../lib/execution/processor'
 import { processExecution } from '../../../lib/execution/service'
 import { getAuthenticatedTenantContext } from '../../../lib/auth/tenant-context'
+import { processDueCadences } from '../../../lib/recovery/dunning-cadence-service'
 import { StructuredLogger } from '../../../lib/observability/logger'
 
 /**
@@ -44,7 +45,10 @@ async function handleWorkerRun(request: NextRequest) {
     staleThresholdMinutes: 5
   })
 
-  // 2. Process queued executions up to bounded limit
+  // 2. Process due cadences (Dunning Engine)
+  const cadenceResult = await processDueCadences(tenantIdFilter)
+
+  // 3. Process queued executions up to bounded limit
   let claimedCount = 0
   let succeededCount = 0
   let failedCount = 0
@@ -100,7 +104,9 @@ async function handleWorkerRun(request: NextRequest) {
     claimedCount,
     succeededCount,
     failedCount,
-    staleRecoveredCount: staleRecovery.recoveredCount
+    staleRecoveredCount: staleRecovery.recoveredCount,
+    cadencesProcessed: cadenceResult.processed,
+    cadencesFailed: cadenceResult.failed
   })
 
   return NextResponse.json({
@@ -111,6 +117,8 @@ async function handleWorkerRun(request: NextRequest) {
     succeededCount,
     failedCount,
     staleRecoveredCount: staleRecovery.recoveredCount,
+    cadencesProcessed: cadenceResult.processed,
+    cadencesFailed: cadenceResult.failed,
     processedExecutions
   }, { status: 200 })
 }

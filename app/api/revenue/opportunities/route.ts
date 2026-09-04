@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
       include: {
         customer: {
           select: { name: true }
-        }
+        },
+        dunningCadence: true
       },
       orderBy: { score: 'desc' }
     })
@@ -38,7 +39,9 @@ export async function GET(request: NextRequest) {
         recommendedAction: (opp.recommendation as any)?.action || 'Review Internally'
       },
       status: opp.status ? (opp.status === 'DETECTED' ? 'pending' : opp.status.toLowerCase()) : 'pending',
-      createdAt: opp.createdAt ? (typeof opp.createdAt === 'string' ? opp.createdAt : opp.createdAt.toISOString()) : new Date().toISOString()
+      createdAt: opp.createdAt ? (typeof opp.createdAt === 'string' ? opp.createdAt : opp.createdAt.toISOString()) : new Date().toISOString(),
+      dunningStep: opp.dunningCadence ? opp.dunningCadence.currentStep : 0,
+      dunningStatus: opp.dunningCadence ? opp.dunningCadence.status : 'NONE'
     }))
 
     // 3. Construct summary aggregation

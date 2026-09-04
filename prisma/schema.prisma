@@ -123,6 +123,7 @@ model Tenant {
   auditEvents           AuditEvent[]
   recoveryPolicies      RecoveryPolicy[]
   recoveryTokens        RecoveryToken[]
+  dunningCadences       DunningCadence[]
 
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
@@ -349,6 +350,7 @@ model RecoveryOpportunity {
   executions            RecoveryExecution[]
   auditEvents           AuditEvent[]
   recoveryTokens        RecoveryToken[]
+  dunningCadence        DunningCadence?
   
   detectedAt            DateTime              @default(now())
   resolvedAt            DateTime?
@@ -595,6 +597,7 @@ model RecoveryToken {
   tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   opportunityId         String
   opportunity           RecoveryOpportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  dunningCadences       DunningCadence[]
   
   tokenHash             String                @unique
   purpose               String                @default("PAYMENT_RECOVERY")
@@ -612,5 +615,42 @@ model RecoveryToken {
   @@index([opportunityId])
   @@index([tokenHash])
   @@index([expiresAt])
+}
+
+enum CadenceStatus {
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+model DunningCadence {
+  id                    String                @id @default(cuid())
+  tenantId              String
+  tenant                Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId         String                @unique
+  opportunity           RecoveryOpportunity   @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  recoveryTokenId       String?
+  recoveryToken         RecoveryToken?        @relation(fields: [recoveryTokenId], references: [id], onDelete: SetNull)
+  
+  currentStep           Int                   @default(1) // 1=Day 1, 2=Day 3, 3=Day 7
+  status                CadenceStatus         @default(SCHEDULED)
+  channel               String                @default("EMAIL")
+  
+  scheduledAt           DateTime
+  attemptedAt           DateTime?
+  completedAt           DateTime?
+  
+  idempotencyKey        String?               @unique
+  metadata              Json?
+  
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([currentStep])
 }
 
