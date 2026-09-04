@@ -45,10 +45,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Bad Request', message: 'Missing event ID' }, { status: 400 })
     }
 
-    // 4. Tenant Identification (Temporary DEV mechanism)
-    const tenantId = process.env.RAZORPAY_TENANT_ID
+    // 4. Multi-Tenant Resolution (Query param, header, or fallback environment variable)
+    const tenantId = request.nextUrl.searchParams.get('tenantId') || request.headers.get('x-tenant-id') || process.env.RAZORPAY_TENANT_ID
     if (!tenantId) {
-      console.warn('[WEBHOOK_RAZORPAY] Server configuration error: RAZORPAY_TENANT_ID missing.')
+      console.warn('[WEBHOOK_RAZORPAY] Server configuration error: Missing tenant ID in query param, header, or RAZORPAY_TENANT_ID.')
       return NextResponse.json({ error: 'Server Configuration Error', message: 'Missing tenant configuration' }, { status: 500 })
     }
 

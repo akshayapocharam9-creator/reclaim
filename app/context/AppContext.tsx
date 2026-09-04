@@ -50,10 +50,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const fetchAllData = async () => {
     try {
-      const [oppRes, analyticsRes, auditRes] = await Promise.all([
+      const [oppRes, analyticsRes, auditRes, integRes] = await Promise.all([
         fetch('/api/revenue/opportunities'),
         fetch('/api/revenue/analytics'),
-        fetch('/api/revenue/audit?limit=20')
+        fetch('/api/revenue/audit?limit=20'),
+        fetch('/api/revenue/integrations')
       ]);
 
       if (oppRes.ok) {
@@ -74,6 +75,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (auditRes.ok) {
         const auData = await auditRes.json();
         setAuditEvents(auData.auditEvents || []);
+      }
+
+      if (integRes.ok) {
+        const iData = await integRes.json();
+        if (Array.isArray(iData.integrations)) {
+          const mapped: Integration[] = iData.integrations.map((i: any) => ({
+            id: i.id,
+            name: i.name,
+            category: i.category,
+            icon: i.name.charAt(0),
+            description: i.description,
+            syncData: i.supportedEvents || [i.category],
+            status: i.status === 'HEALTHY' ? 'connected' : (i.status === 'DEGRADED' ? 'connecting' : 'not_connected'),
+            lastSync: i.lastEventAt ? 'Active' : undefined
+          }));
+          setIntegrations(mapped);
+        }
       }
     } catch (error) {
       console.error('Failed to load live pipeline data:', error);
