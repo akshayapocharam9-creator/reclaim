@@ -32,13 +32,16 @@ export default function LoginPage() {
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Authentication request failed');
+        const msg = typeof data?.error === 'string'
+          ? data.error
+          : (data?.error?.message || data?.message || 'Authentication request failed');
+        throw new Error(msg);
       }
 
       await refreshSession();
-      router.push('/');
+      window.location.href = '/';
     } catch (err: any) {
       setErrorMessage(err.message || 'Error occurred during authentication');
     } finally {
@@ -59,13 +62,16 @@ export default function LoginPage() {
         })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || 'Demo login failed');
+        const msg = typeof data?.error === 'string'
+          ? data.error
+          : (data?.error?.message || data?.message || 'Demo login failed');
+        throw new Error(msg);
       }
 
       await refreshSession();
-      router.push('/');
+      window.location.href = '/';
     } catch (err: any) {
       setErrorMessage(err.message || 'Demo login failed');
     } finally {
