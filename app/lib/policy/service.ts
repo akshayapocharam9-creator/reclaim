@@ -366,3 +366,206 @@ function buildPolicyResult(params: {
     evaluatedAt: now.toISOString()
   }
 }
+
+/**
+ * Pure, read-only simulation function that evaluates an arbitrary INR amount
+ * against a tenant's active deterministic recovery policy.
+ * 
+ * GUARANTEES:
+ * - Reuses the exact same deterministic rules as evaluateRecoveryPolicy.
+ * - ZERO database mutations or records created.
+ * - ZERO execution or payment actions triggered.
+ * - AI is strictly excluded from decision making.
+ */
+export async function simulatePolicyAmount(params: {
+  tenantId: string
+  amountMinor: number
+  priority?: PriorityLevel
+  actionType?: ActionType
+  provider?: string
+}): Promise<PolicyEvaluationResult & {
+  amountMinor: number
+  amountINR: number
+  thresholdMinor: number
+  thresholdINR: number
+}> {
+  const {
+    tenantId,
+    amountMinor,
+    priority = PriorityLevel.HIGH,
+    actionType = ActionType.RETRY_PAYMENT,
+    provider = 'simulation'
+  } = params
+
+  const now = new Date()
+  const policy = await getOrCreateDefaultTenantPolicy(tenantId)
+
+  // 1. Policy Enabled Check
+  if (!policy.enabled) {
+    const res = buildPolicyResult({
+      decision: 'BLOCKED',
+      reasonCode: 'POLICY_DISABLED',
+      reason: 'Tenant recovery policy is disabled',
+      policy,
+      requiresApproval: false,
+      now
+    })
+    return {
+      amountMinor,
+      amountINR: amountMinor / 100,
+      thresholdMinor: policy.maxAmountMinor,
+      thresholdINR: policy.maxAmountMinor / 100,
+      ...res
+    }
+  }
+
+  // 2. Automation Kill Switch Check
+  if (!policy.autoExecutionEnabled) {
+    const res = buildPolicyResult({
+      decision: 'BLOCKED',
+      reasonCode: 'AUTOMATION_DISABLED',
+      reason: 'Tenant automation kill switch is active (Auto-execution disabled)',
+      policy,
+      requiresApproval: true,
+      now
+    })
+    return {
+      amountMinor,
+      amountINR: amountMinor / 100,
+      thresholdMinor: policy.maxAmountMinor,
+      thresholdINR: policy.maxAmountMinor / 100,
+      ...res
+    }
+  }
+
+  // 3. Allowed Priorities Check
+  if (!policy.allowedPriorities.includes(priority)) {
+    const res = buildPolicyResult({
+      decision: 'APPROVAL_REQUIRED',
+      reasonCode: 'DISALLOWED_PRIORITY',
+      reason: `Priority '${priority}' requires manual review under active policy`,
+      policy,
+      requiresApproval: true,
+      now
+    })
+    return {
+      amountMinor,
+      amountINR: amountMinor / 100,
+      thresholdMinor: policy.maxAmountMinor,
+      thresholdINR: policy.maxAmountMinor / 100,
+      ...res
+    }
+  }
+
+  // 4. Amount Limits Check (Deterministic maxAmountMinor / minAmountMinor)
+  if (amountMinor > policy.maxAmountMinor) {
+    const res = buildPolicyResult({
+      decision: 'APPROVAL_REQUIRED',
+      reasonCode: 'EXCEEDS_MAX_AUTO_AMOUNT',
+      reason: `Amount (₹${(amountMinor / 100).toLocaleString()}) exceeds automatic execution threshold of ₹${(policy.maxAmountMinor / 100).toLocaleString()}`,
+      policy,
+      requiresApproval: true,
+      now
+    })
+    return {
+      amountMinor,
+      amountINR: amountMinor / 100,
+      thresholdMinor: policy.maxAmountMinor,
+      thresholdINR: policy.maxAmountMinor / 100,
+      ...res
+    }
+  }
+
+  if (amountMinor < policy.minAmountMinor) {
+    const res = buildPolicyResult({
+      decision: 'BLOCKED',
+      reasonCode: 'BELOW_MIN_AMOUNT',
+      reason: `Amount is below minimum policy threshold of ₹${(policy.minAmountMinor / 100).toLocaleString()}`,
+      policy,
+      requiresApproval: false,
+      now
+    })
+    return {
+      amountMinor,
+      amountINR: amountMinor / 100,
+      thresholdMinor: policy.maxAmountMinor,
+      thresholdINR: policy.maxAmountMinor / 100,
+      ...res
+    }
+  }
+
+  // 5. Allowed Action Check
+  if (!policy.allowedActions.includes(actionType)) {
+    const res = buildPolicyResult({
+      decision: 'APPROVAL_REQUIRED',
+      reasonCode: 'DISALLOWED_ACTION_TYPE',
+      reason: `Action type '${actionType}' is not in policy allowed automatic actions`,
+      policy,
+      requiresApproval: true,
+      now
+    })
+    return {
+      amountMinor,
+      amountINR: amountMinor / 100,
+      thresholdMinor: policy.maxAmountMinor,
+      thresholdINR: policy.maxAmountMinor / 100,
+      ...res
+    }
+  }
+
+  // 6. Allowed Provider Check
+  if (provider && !policy.allowedProviders.includes(provider)) {
+    const res = buildPolicyResult({
+      decision: 'BLOCKED',
+      reasonCode: 'UNSUPPORTED_PROVIDER',
+      reason: `Provider '${provider}' is not allowed or supported by policy`,
+      policy,
+      requiresApproval: true,
+      now
+    })
+    return {
+      amountMinor,
+      amountINR: amountMinor / 100,
+      thresholdMinor: policy.maxAmountMinor,
+      thresholdINR: policy.maxAmountMinor / 100,
+      ...res
+    }
+  }
+
+  // 7. Explicit Manual Approval Required Check
+  if (policy.requiresApproval) {
+    const res = buildPolicyResult({
+      decision: 'APPROVAL_REQUIRED',
+      reasonCode: 'MANUAL_APPROVAL_ENFORCED',
+      reason: 'Active policy mandates human operator approval for all recoveries',
+      policy,
+      requiresApproval: true,
+      now
+    })
+    return {
+      amountMinor,
+      amountINR: amountMinor / 100,
+      thresholdMinor: policy.maxAmountMinor,
+      thresholdINR: policy.maxAmountMinor / 100,
+      ...res
+    }
+  }
+
+  // 8. Approved for Automatic Execution
+  const res = buildPolicyResult({
+    decision: 'AUTO_EXECUTE',
+    reasonCode: 'WITHIN_AUTO_EXECUTION_LIMITS',
+    reason: 'Amount meets all deterministic criteria for automatic execution',
+    policy,
+    requiresApproval: false,
+    now
+  })
+  return {
+    amountMinor,
+    amountINR: amountMinor / 100,
+    thresholdMinor: policy.maxAmountMinor,
+    thresholdINR: policy.maxAmountMinor / 100,
+    ...res
+  }
+}
+

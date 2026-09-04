@@ -2,6 +2,7 @@
 import React from 'react';
 import { useAppContext } from '../context/AppContext';
 import AgentPanel from '../components/AgentPanel';
+import PolicySimulator from '../components/PolicySimulator';
 
 export default function AgentPage() {
   const { activities, decision, settings } = useAppContext();
@@ -61,6 +62,9 @@ export default function AgentPage() {
               </div>
             </div>
           </div>
+
+          {/* Read-Only Deterministic Policy Simulator */}
+          <PolicySimulator />
 
           {decision && (
             <div className="bg-white dark:bg-[#09090b] shadow-sm border border-blue-200 dark:border-blue-900/50 rounded-xl overflow-hidden">
