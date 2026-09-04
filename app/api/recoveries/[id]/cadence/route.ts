@@ -23,7 +23,13 @@ export async function POST(
   })
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+    const status =
+      result.error === 'Opportunity not found'
+        ? 404
+        : result.error?.includes('Cannot schedule') || result.error?.includes('already exists')
+          ? 409
+          : 400
+    return NextResponse.json({ error: result.error }, { status })
   }
 
   return NextResponse.json({

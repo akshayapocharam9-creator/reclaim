@@ -162,6 +162,15 @@ export async function createRecoveryToken(params: CreateRecoveryTokenParams): Pr
     throw new Error('Recovery opportunity not found for specified tenant')
   }
 
+  // Reject token generation if opportunity is already in terminal state
+  if (
+    opportunity.status === OpportunityStatus.RECOVERED ||
+    opportunity.status === OpportunityStatus.FAILED ||
+    opportunity.status === OpportunityStatus.DISMISSED
+  ) {
+    throw new Error(`Cannot generate recovery token for opportunity in terminal state (${opportunity.status})`)
+  }
+
   // 2. Generate 32 bytes (256 bits) of cryptographically secure random entropy
   const rawToken = crypto.randomBytes(32).toString('hex')
   const tokenHash = hashToken(rawToken)
@@ -295,6 +304,18 @@ export async function verifyRecoveryToken(rawToken: string): Promise<TokenVerifi
     }
   }
 
+  if (record.opportunity.status === OpportunityStatus.FAILED || record.opportunity.status === OpportunityStatus.DISMISSED) {
+    return {
+      valid: false,
+      error: 'ALREADY_RECOVERED',
+      message: `This recovery opportunity has already been closed (${record.opportunity.status.toLowerCase()}).`,
+      alreadyResolved: true,
+      recoveryToken: record,
+      opportunity: record.opportunity,
+      tenant: record.tenant
+    }
+  }
+
   return {
     valid: true,
     message: 'Token is valid.',
@@ -404,6 +425,39 @@ export async function resolvePaymentWithToken(
         success: false,
         statusCode: 409,
         error: 'Recovery link has already been consumed or revoked.'
+      }
+    }
+
+    // Re-verify opportunity status under lock to prevent race conditions with concurrent recoveries
+    const freshOpp = await tx.recoveryOpportunity.findUnique({
+      where: { id: opportunity!.id }
+    })
+
+    if (!freshOpp) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: 'Opportunity record not found.'
+      }
+    }
+
+    if (freshOpp.status === OpportunityStatus.RECOVERED) {
+      return {
+        success: true,
+        statusCode: 200,
+        alreadyResolved: true,
+        receiptId: `REC-${freshOpp.id.substring(0, 8).toUpperCase()}`,
+        recoveredAmountMinor: freshOpp.amountAtRiskMinor,
+        currency: 'INR',
+        opportunityStatus: OpportunityStatus.RECOVERED
+      }
+    }
+
+    if (freshOpp.status === OpportunityStatus.FAILED || freshOpp.status === OpportunityStatus.DISMISSED) {
+      return {
+        success: false,
+        statusCode: 409,
+        error: `Recovery opportunity has already been closed (${freshOpp.status}).`
       }
     }
 

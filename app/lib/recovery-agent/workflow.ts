@@ -419,6 +419,11 @@ export async function getOpportunityActionState(params: {
     return null
   }
 
+  const isTerminal =
+    opportunity.status === OpportunityStatus.RECOVERED ||
+    opportunity.status === OpportunityStatus.FAILED ||
+    opportunity.status === OpportunityStatus.DISMISSED
+
   return {
     opportunityId: opportunity.id,
     opportunityStatus: opportunity.status,
@@ -431,7 +436,7 @@ export async function getOpportunityActionState(params: {
     outcomes: opportunity.outcomes,
     executions: opportunity.executions,
     dunningCadence: opportunity.dunningCadence || null,
-    hasActivePortal: opportunity.recoveryTokens.length > 0,
-    activeTokenExpiry: opportunity.recoveryTokens[0]?.expiresAt || null
+    hasActivePortal: !isTerminal && opportunity.recoveryTokens.length > 0,
+    activeTokenExpiry: !isTerminal ? (opportunity.recoveryTokens[0]?.expiresAt || null) : null
   }
 }

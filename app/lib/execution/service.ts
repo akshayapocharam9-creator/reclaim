@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from '../prisma'
-import { ActionStatus, ExecutionStatus, MembershipRole } from '@prisma/client'
+import { ActionStatus, ExecutionStatus, MembershipRole, OpportunityStatus } from '@prisma/client'
 import { ProviderRegistry } from './registry'
 import { ExecutionRequest, ExecutionResult } from './types'
 import { logAuditEvent } from '../audit/audit-service'
@@ -55,6 +55,28 @@ export async function queueExecution(params: QueueExecutionParams): Promise<Exec
 
   if (!action || action.tenantId !== tenantId || action.opportunityId !== opportunityId) {
     return { success: false, statusCode: 404, error: 'Recovery action record not found' }
+  }
+
+  // Reject queuing if opportunity is in a terminal state
+  if (
+    opportunity.status === OpportunityStatus.RECOVERED ||
+    opportunity.status === OpportunityStatus.FAILED ||
+    opportunity.status === OpportunityStatus.DISMISSED
+  ) {
+    return {
+      success: false,
+      statusCode: 409,
+      error: `Cannot queue execution for opportunity in terminal state '${opportunity.status}'`
+    }
+  }
+
+  // Reject queuing if action is already executed or canceled
+  if (action.status === ActionStatus.EXECUTED || action.status === ActionStatus.CANCELED) {
+    return {
+      success: false,
+      statusCode: 409,
+      error: `Cannot queue execution for action in status '${action.status}'`
+    }
   }
 
   // 2. Generate deterministic idempotency key if not explicitly supplied
@@ -121,7 +143,7 @@ export async function queueExecution(params: QueueExecutionParams): Promise<Exec
   })
 
   // 7. Update action status to EXECUTING if not already
-  if (action.status !== ActionStatus.EXECUTING && action.status !== ActionStatus.EXECUTED) {
+  if (action.status !== ActionStatus.EXECUTING) {
     await prisma.recoveryAction.update({
       where: { id: action.id },
       data: { status: ActionStatus.EXECUTING }

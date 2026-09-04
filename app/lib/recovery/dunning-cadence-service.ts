@@ -302,4 +302,17 @@ export async function stopActiveCadenceForOpportunity(params: {
       }
     }
   })
+
+  await logAuditEvent({
+    tenantId,
+    opportunityId,
+    eventType: 'DUNNING_CADENCE_STOPPED',
+    entityType: 'DunningCadence',
+    entityId: activeCadence.id,
+    metadata: {
+      terminalStatus,
+      stoppedAt: now.toISOString(),
+      stoppedReason: `Opportunity reached terminal state: ${terminalStatus}`
+    }
+  })
 }

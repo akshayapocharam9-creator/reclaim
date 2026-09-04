@@ -30,6 +30,7 @@ export interface ReconcileResult {
   error?: string
   outcome?: any
   opportunity?: any
+  isIdempotent?: boolean
 }
 
 /**
@@ -77,7 +78,66 @@ export async function reconcileRecoveryOutcome(params: ReconcileOutcomeParams): 
     ? params.unrecoveredAmountMinor
     : Math.max(0, opportunity.amountAtRiskMinor - recoveredAmountMinor)
 
-  // 2. Perform transactional outcome creation & state synchronization
+  // 2. Idempotency protection: check if matching outcome or terminal status already reconciled
+  if (providerReference) {
+    const existingByRef = await prisma.recoveryOutcome.findFirst({
+      where: {
+        tenantId,
+        providerReference
+      }
+    })
+    if (existingByRef) {
+      return {
+        success: true,
+        statusCode: 200,
+        outcome: existingByRef,
+        opportunity,
+        isIdempotent: true
+      }
+    }
+  }
+
+  if (opportunity.status === OpportunityStatus.RECOVERED && outcomeType === OutcomeType.SUCCESS) {
+    const existingSuccess = await prisma.recoveryOutcome.findFirst({
+      where: {
+        tenantId,
+        opportunityId: opportunity.id,
+        type: OutcomeType.SUCCESS
+      },
+      orderBy: { occurredAt: 'desc' }
+    })
+    if (existingSuccess) {
+      return {
+        success: true,
+        statusCode: 200,
+        outcome: existingSuccess,
+        opportunity,
+        isIdempotent: true
+      }
+    }
+  }
+
+  if (opportunity.status === OpportunityStatus.FAILED && outcomeType === OutcomeType.FAILURE) {
+    const existingFailure = await prisma.recoveryOutcome.findFirst({
+      where: {
+        tenantId,
+        opportunityId: opportunity.id,
+        type: OutcomeType.FAILURE
+      },
+      orderBy: { occurredAt: 'desc' }
+    })
+    if (existingFailure) {
+      return {
+        success: true,
+        statusCode: 200,
+        outcome: existingFailure,
+        opportunity,
+        isIdempotent: true
+      }
+    }
+  }
+
+  // 3. Perform transactional outcome creation & state synchronization
   const operations: any[] = []
 
   // Create RecoveryOutcome record
