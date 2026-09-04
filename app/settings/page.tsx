@@ -171,6 +171,10 @@ export default function SettingsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/50">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+            Mode: AUDIT (Safe Simulation)
+          </div>
           <span className="px-2.5 py-1 rounded text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
             Policy Version: v{policyVersion}
           </span>
@@ -180,6 +184,23 @@ export default function SettingsPage() {
             </span>
           )}
         </div>
+      </div>
+
+      <div className="bg-indigo-50/60 dark:bg-indigo-950/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between text-xs text-indigo-900 dark:text-indigo-200">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold">
+            ⚡
+          </div>
+          <div>
+            <p className="font-semibold text-sm">Automated Dunning Cadence Defaults</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-0.5">
+              Engine cadence progresses across Day 1 (Initial Notice) $\rightarrow$ Day 3 (+2 days) $\rightarrow$ Day 7 (+4 days) with dynamic single-use token generation.
+            </p>
+          </div>
+        </div>
+        <span className="px-2.5 py-1 rounded bg-white dark:bg-[#18181b] border border-indigo-200 dark:border-indigo-800 font-mono text-[11px]">
+          3-Stage Cadence Active
+        </span>
       </div>
 
       {successMessage && (

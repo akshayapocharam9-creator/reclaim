@@ -14,21 +14,19 @@ interface CustomerProfile {
 export default function CustomersPage() {
   const { opportunities } = useAppContext();
   
-  // Aggregate data by customer
+  // Aggregate data by customer from real opportunity exposure
   const customerMap = opportunities.reduce((acc, opp) => {
     if (!acc[opp.customerName]) {
-      // Deterministic pseudo-random revenue based on name length for demo
-      const baseRev = (opp.customerName.length * 15000) + 50000;
-      
       acc[opp.customerName] = {
         name: opp.customerName,
-        totalRevenue: baseRev,
+        totalRevenue: 0,
         atRisk: 0,
         opportunities: [],
         latestEvent: opp.analysis.problem
       };
     }
-    if (opp.status === 'pending') {
+    acc[opp.customerName].totalRevenue += opp.amount;
+    if (opp.status === 'pending' || opp.status === 'queued_for_recovery' || opp.status === 'in_progress') {
       acc[opp.customerName].atRisk += opp.amount;
     }
     acc[opp.customerName].opportunities.push(opp);
@@ -39,9 +37,10 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
 
   const getRiskLevel = (atRisk: number, totalRev: number) => {
+    if (totalRev === 0) return 'Low';
     const ratio = atRisk / totalRev;
-    if (ratio > 0.3) return 'High';
-    if (ratio > 0.1) return 'Medium';
+    if (ratio > 0.5) return 'High';
+    if (ratio > 0.2) return 'Medium';
     return 'Low';
   };
 
@@ -66,14 +65,20 @@ export default function CustomersPage() {
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-[#18181b]/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <th className="px-6 py-4">Customer</th>
-                <th className="px-6 py-4">Total Revenue (YTD)</th>
+                <th className="px-6 py-4">Total Value</th>
                 <th className="px-6 py-4">Amount at Risk</th>
                 <th className="px-6 py-4">Risk Level</th>
-                <th className="px-6 py-4">Opps</th>
+                <th className="px-6 py-4">Opportunities</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {customers.map((c, i) => {
+              {customers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 px-6 text-center text-sm text-gray-500">
+                    No customer accounts currently flagged with revenue risk.
+                  </td>
+                </tr>
+              ) : customers.map((c, i) => {
                 const riskLevel = getRiskLevel(c.atRisk, c.totalRevenue);
                 return (
                   <tr key={i} onClick={() => setSelectedCustomer(c)} className="hover:bg-gray-50 dark:hover:bg-[#18181b] transition-colors cursor-pointer">

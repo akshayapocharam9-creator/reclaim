@@ -43,7 +43,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
         actions: { orderBy: { createdAt: 'asc' } },
         executions: { orderBy: { createdAt: 'asc' } },
         outcomes: { orderBy: { occurredAt: 'asc' } },
-        auditEvents: { orderBy: { timestamp: 'asc' } }
+        auditEvents: { orderBy: { timestamp: 'asc' } },
+        dunningCadence: true,
+        recoveryTokens: { orderBy: { createdAt: 'asc' } }
       }
     })
 
@@ -175,6 +177,42 @@ export async function GET(request: NextRequest, context: RouteContext) {
           unrecoveredAmountMinor: outcome.unrecoveredAmountMinor,
           provider: outcome.provider
         }
+      })
+    }
+
+    // 7. Dunning Cadence & Recovery Tokens
+    if (opportunity.dunningCadence) {
+      const cad = opportunity.dunningCadence
+      timeline.push({
+        id: `cad_${cad.id}`,
+        stage: 'DUNNING_CADENCE',
+        title: `Dunning Cadence (${cad.status})`,
+        description: `Active dunning sequence at Step ${cad.currentStep} (Day ${cad.currentStep === 1 ? 1 : cad.currentStep === 2 ? 3 : 7}). Next scheduled: ${new Date(cad.scheduledAt).toLocaleString()}`,
+        timestamp: cad.createdAt.toISOString(),
+        status: cad.status,
+        metadata: {
+          step: cad.currentStep,
+          channel: cad.channel,
+          scheduledAt: cad.scheduledAt.toISOString()
+        }
+      })
+    }
+
+    for (const token of opportunity.recoveryTokens) {
+      const isExpired = token.expiresAt < new Date()
+      const isResolved = Boolean(token.consumedAt)
+      timeline.push({
+        id: `tok_${token.id}`,
+        stage: 'RECOVERY_PORTAL',
+        title: 'Customer Recovery Link Issued',
+        description: isResolved 
+          ? `Cryptographic token consumed and settled at ${new Date(token.consumedAt!).toLocaleString()}`
+          : isExpired 
+            ? `Recovery token expired at ${new Date(token.expiresAt).toLocaleString()}`
+            : `Single-use recovery token active. Valid until ${new Date(token.expiresAt).toLocaleString()}`,
+        timestamp: token.createdAt.toISOString(),
+        status: isResolved ? 'RESOLVED' : isExpired ? 'EXPIRED' : 'ACTIVE',
+        metadata: { expiresAt: token.expiresAt.toISOString() }
       })
     }
 

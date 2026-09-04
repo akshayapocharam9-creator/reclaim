@@ -34,12 +34,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const getPageTitle = (path: string) => {
+    switch (path) {
+      case '/': return 'Revenue Recovery Overview';
+      case '/opportunities': return 'Revenue Recovery Opportunities';
+      case '/recoveries': return 'Active Recovery Operations';
+      case '/customers': return 'Customer Risk Intelligence';
+      case '/agent': return 'Autonomous Recovery Agent';
+      case '/integrations': return 'Payment Gateways & Webhooks';
+      case '/settings': return 'Recovery Policies & Guardrails';
+      default: return 'Revenue Recovery';
+    }
+  };
+
   return (
     <div className="flex h-full w-full bg-[#fcfcfc] dark:bg-black text-gray-900 dark:text-gray-100 overflow-hidden font-sans">
       <Sidebar />
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-16 border-b border-gray-200 dark:border-gray-900 bg-white/80 dark:bg-[#09090b]/80 backdrop-blur-md flex items-center justify-between px-8 shrink-0 z-10 sticky top-0">
-          <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">Revenue Recovery Overview</h2>
+          <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">
+            {getPageTitle(pathname || '/')}
+          </h2>
           <HeaderAuth />
         </header>
         <main className="flex-1 overflow-y-auto p-8 bg-[#fcfcfc] dark:bg-black selection:bg-gray-200 dark:selection:bg-gray-800">

@@ -205,6 +205,32 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
     }
   };
 
+  const handleScheduleCadence = async () => {
+    if (!selectedOpp) return;
+    setIsProcessing(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await fetch(`/api/recoveries/${selectedOpp.id}/cadence`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to initialize dunning cadence');
+      }
+      setSuccessMessage('Dunning cadence initialized successfully (Step 1 active)');
+      await fetchActionState(selectedOpp.id);
+      if (activeTab === 'timeline') {
+        await fetchTimeline(selectedOpp.id);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error scheduling cadence');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleApprovePendingAction = async () => {
     if (!selectedOpp) return;
     setIsProcessing(true);
@@ -375,7 +401,15 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
         
         <div className="divide-y divide-gray-100 dark:divide-gray-800">
           {opportunities.length === 0 ? (
-            <div className="p-8 text-center text-sm text-gray-500">No opportunities found.</div>
+            <div className="py-16 px-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-400 flex items-center justify-center mx-auto mb-3 text-lg font-bold">
+                ✓
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Zero Revenue Leaks Pending</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-sm mx-auto">
+                No active payment failures or recovery opportunities meet the current filter criteria.
+              </p>
+            </div>
           ) : opportunities.map((opp) => (
             <div 
               key={opp.id} 
@@ -384,7 +418,7 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
+                  <div className="flex flex-wrap items-center gap-3 mb-1">
                     <span className="font-semibold text-gray-900 dark:text-white text-lg tracking-tight">
                       ${opp.amount.toLocaleString()}
                     </span>
@@ -395,10 +429,25 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
                     <span className="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
                       {opp.status.replace(/_/g, ' ')}
                     </span>
+                    {opp.dunningStep ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold border border-purple-200 text-purple-700 bg-purple-50 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
+                        Dunning: Step {opp.dunningStep} (Day {opp.dunningStep === 1 ? 1 : opp.dunningStep === 2 ? 3 : 7})
+                      </span>
+                    ) : null}
+                    {opp.hasRecoveryPortal && (
+                      <span className="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold border border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                        Portal Link Active
+                      </span>
+                    )}
                   </div>
                   
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {opp.analysis.problem}
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-3">
+                    <span>{opp.analysis.problem}</span>
+                    {opp.dunningScheduledAt && opp.dunningStatus === 'SCHEDULED' && (
+                      <span className="text-xs text-purple-600 dark:text-purple-400 font-mono">
+                        · Next Cadence: {new Date(opp.dunningScheduledAt).toLocaleDateString()}
+                      </span>
+                    )}
                   </div>
                 </div>
                 
@@ -739,6 +788,89 @@ export default function OpportunityList({ opportunities, onApprove, onDismiss }:
                       </div>
                     </div>
                   )}
+
+                  {/* 5. DUNNING CADENCE & RECOVERY PORTAL LIFECYCLE */}
+                  <div className="bg-gray-50 dark:bg-[#18181b] p-5 rounded-lg border border-purple-200 dark:border-purple-900/60 shadow-xs">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1 rounded bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <div>
+                          <h5 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Automated Dunning Cadence & Recovery Portal</h5>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-400">Day 1 → Day 3 → Day 7 multi-channel notification loop</p>
+                        </div>
+                      </div>
+                      {actionState?.dunningCadence ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                          {actionState.dunningCadence.status}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                          Not Scheduled
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Cadence Step Progression */}
+                    <div className="grid grid-cols-3 gap-2 my-3 p-3 bg-white dark:bg-[#0f0f12] rounded-lg border border-purple-100 dark:border-purple-900/40 text-center">
+                      <div className={`p-2 rounded ${actionState?.dunningCadence?.currentStep === 1 ? 'bg-purple-50 dark:bg-purple-950/60 font-bold text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800' : 'text-gray-400'}`}>
+                        <p className="text-[10px] uppercase tracking-wider">Step 1</p>
+                        <p className="text-xs mt-0.5">Day 1 (Initial)</p>
+                      </div>
+                      <div className={`p-2 rounded ${actionState?.dunningCadence?.currentStep === 2 ? 'bg-purple-50 dark:bg-purple-950/60 font-bold text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800' : 'text-gray-400'}`}>
+                        <p className="text-[10px] uppercase tracking-wider">Step 2</p>
+                        <p className="text-xs mt-0.5">Day 3 (+2d)</p>
+                      </div>
+                      <div className={`p-2 rounded ${actionState?.dunningCadence?.currentStep === 3 ? 'bg-purple-50 dark:bg-purple-950/60 font-bold text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800' : 'text-gray-400'}`}>
+                        <p className="text-[10px] uppercase tracking-wider">Step 3</p>
+                        <p className="text-xs mt-0.5">Day 7 (+4d)</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs text-gray-600 dark:text-gray-400 mt-2">
+                      <div>
+                        <span className="font-medium text-gray-800 dark:text-gray-200">Channel: </span>
+                        <span>{actionState?.dunningCadence?.channel || 'EMAIL (Resend)'}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-800 dark:text-gray-200">Portal Link Status: </span>
+                        <span className={actionState?.hasActivePortal ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-gray-500'}>
+                          {actionState?.hasActivePortal ? 'Active & Unexpired' : 'Not Generated / Inactive'}
+                        </span>
+                      </div>
+                      {actionState?.dunningCadence?.scheduledAt && (
+                        <div className="col-span-2">
+                          <span className="font-medium text-gray-800 dark:text-gray-200">Next Scheduled Run: </span>
+                          <span className="font-mono text-gray-900 dark:text-gray-100">
+                            {new Date(actionState.dunningCadence.scheduledAt).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                      {actionState?.activeTokenExpiry && (
+                        <div className="col-span-2">
+                          <span className="font-medium text-gray-800 dark:text-gray-200">Active Token Expiry: </span>
+                          <span className="font-mono text-gray-700 dark:text-gray-300">
+                            {new Date(actionState.activeTokenExpiry).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {!actionState?.dunningCadence && currentStatus !== 'RECOVERED' && currentStatus !== 'DISMISSED' && isPrivileged && (
+                      <div className="mt-4 pt-3 border-t border-purple-100 dark:border-purple-900/40 flex justify-between items-center">
+                        <span className="text-[11px] text-gray-500">Initialize Day 1/3/7 background cadence</span>
+                        <button
+                          type="button"
+                          onClick={handleScheduleCadence}
+                          disabled={isProcessing}
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                        >
+                          {isProcessing ? 'Scheduling...' : 'Start Dunning Cadence'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

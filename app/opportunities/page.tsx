@@ -42,8 +42,10 @@ export default function OpportunitiesPage() {
             className="px-3 py-2 bg-white dark:bg-[#09090b] border border-gray-200 dark:border-gray-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-white"
           >
             <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="queued_for_recovery">Queued</option>
+            <option value="pending">Pending (Detected)</option>
+            <option value="in_progress">In Progress</option>
+            <option value="recovered">Recovered</option>
+            <option value="lost">Lost / Failed</option>
             <option value="dismissed">Dismissed</option>
           </select>
           <select 
@@ -66,9 +68,6 @@ export default function OpportunitiesPage() {
         </div>
       </div>
 
-      {/* We reuse the OpportunityList but wait, OpportunityList currently forces filtering o.status === 'pending'. */}
-      {/* I need to make OpportunityList not filter automatically if we pass pre-filtered opportunities, or add a prop to disable its internal filter. */}
-      {/* Actually, let's update OpportunityList to accept filtered items or remove its internal filter. */}
       <OpportunityList 
         opportunities={filteredOpps} 
         onApprove={approveOpportunity}

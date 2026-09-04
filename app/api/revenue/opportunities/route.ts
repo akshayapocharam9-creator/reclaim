@@ -18,7 +18,15 @@ export async function GET(request: NextRequest) {
         customer: {
           select: { name: true }
         },
-        dunningCadence: true
+        dunningCadence: true,
+        recoveryTokens: {
+          where: {
+            revokedAt: null,
+            consumedAt: null,
+            expiresAt: { gt: new Date() }
+          },
+          select: { id: true }
+        }
       },
       orderBy: { score: 'desc' }
     })
@@ -41,7 +49,9 @@ export async function GET(request: NextRequest) {
       status: opp.status ? (opp.status === 'DETECTED' ? 'pending' : opp.status.toLowerCase()) : 'pending',
       createdAt: opp.createdAt ? (typeof opp.createdAt === 'string' ? opp.createdAt : opp.createdAt.toISOString()) : new Date().toISOString(),
       dunningStep: opp.dunningCadence ? opp.dunningCadence.currentStep : 0,
-      dunningStatus: opp.dunningCadence ? opp.dunningCadence.status : 'NONE'
+      dunningStatus: opp.dunningCadence ? opp.dunningCadence.status : 'NONE',
+      dunningScheduledAt: opp.dunningCadence?.scheduledAt ? opp.dunningCadence.scheduledAt.toISOString() : null,
+      hasRecoveryPortal: opp.recoveryTokens.length > 0
     }))
 
     // 3. Construct summary aggregation

@@ -376,6 +376,19 @@ export async function getOpportunityActionState(params: {
       },
       executions: {
         orderBy: { createdAt: 'desc' }
+      },
+      dunningCadence: true,
+      recoveryTokens: {
+        where: {
+          revokedAt: null,
+          consumedAt: null,
+          expiresAt: { gt: new Date() }
+        },
+        select: {
+          id: true,
+          expiresAt: true,
+          purpose: true
+        }
       }
     }
   })
@@ -394,6 +407,9 @@ export async function getOpportunityActionState(params: {
     actionsCount: opportunity.actions.length,
     actions: opportunity.actions,
     outcomes: opportunity.outcomes,
-    executions: opportunity.executions
+    executions: opportunity.executions,
+    dunningCadence: opportunity.dunningCadence || null,
+    hasActivePortal: opportunity.recoveryTokens.length > 0,
+    activeTokenExpiry: opportunity.recoveryTokens[0]?.expiresAt || null
   }
 }

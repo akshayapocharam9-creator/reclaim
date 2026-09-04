@@ -44,29 +44,38 @@ export default function RecoveriesPage() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {activeOpps.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">No active recoveries. Approve an opportunity to see it here.</td>
+                  <td colSpan={6} className="py-12 px-6 text-center text-sm text-gray-500">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-400 flex items-center justify-center mx-auto mb-2 font-bold text-base">
+                      ⚡
+                    </div>
+                    No active recovery workflows in progress. Authorize an action from Opportunities to track execution.
+                  </td>
                 </tr>
               ) : activeOpps.map((opp) => {
                 const o = opp as typeof opp & { dunningStep?: number, dunningStatus?: string };
                 return (
                 <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-[#18181b] transition-colors">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-200">{o.customerName}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">${o.amount.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">${o.amount.toLocaleString()}</td>
                   <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{o.analysis?.recommendedAction || 'Contact Customer'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-500">
                     {new Date(o.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4">
                     {o.dunningStep ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold border border-purple-200 text-purple-700 bg-purple-50 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800">
-                        Step {o.dunningStep}
+                      <span className="px-2.5 py-1 rounded text-[10px] uppercase tracking-wider font-semibold border border-purple-200 text-purple-700 bg-purple-50 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
+                        Step {o.dunningStep} (Day {o.dunningStep === 1 ? 1 : o.dunningStep === 2 ? 3 : 7})
                       </span>
                     ) : (
-                      <span className="text-gray-400 text-xs">-</span>
+                      <span className="text-gray-400 text-xs">—</span>
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <span className="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold border border-blue-200 text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                    <span className={`px-2.5 py-1 rounded text-[10px] uppercase tracking-wider font-semibold border ${
+                      o.status === 'recovered' 
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                        : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                    }`}>
                       {o.status.replace(/_/g, ' ')}
                     </span>
                   </td>

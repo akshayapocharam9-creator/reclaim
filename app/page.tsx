@@ -162,6 +162,7 @@ export default function Home() {
     }
   }, [dateRange, analytics?.timeSeries]);
 
+  const activeDunningCount = opportunities.filter(o => o.dunningStep && o.dunningStep > 0 && o.status !== 'recovered' && o.status !== 'dismissed').length;
   const activeIntegrations = useAppContext().integrations.filter(i => i.status === 'connected').length;
 
   return (
@@ -244,10 +245,11 @@ export default function Home() {
         {/* LEFT COLUMN: VISUALIZATIONS & PIPELINE */}
         <div className="xl:col-span-2 space-y-8">
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <MetricCard title="Revenue At Risk" value={`$${totalAtRisk.toLocaleString()}`} variant="primary" />
             <MetricCard title="Recovered Revenue" value={`$${totalRecovered.toLocaleString()}`} />
             <MetricCard title="Active Recoveries" value={approvedCount.toString()} />
+            <MetricCard title="Active Dunning" value={activeDunningCount.toString()} />
             <MetricCard title="Recovery Rate" value={`${recoveryRate}%`} />
           </div>
 

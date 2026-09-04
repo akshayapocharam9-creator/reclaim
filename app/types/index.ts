@@ -49,6 +49,10 @@ export interface RecoveryOpportunity {
   analysis: RecoveryAnalysis;
   status: RecoveryStatus;
   createdAt: string;
+  dunningStep?: number;
+  dunningStatus?: string;
+  dunningScheduledAt?: string | null;
+  hasRecoveryPortal?: boolean;
 }
 
 export interface AgentActivity {
