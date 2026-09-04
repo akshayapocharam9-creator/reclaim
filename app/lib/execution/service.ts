@@ -166,6 +166,27 @@ export async function processExecution(
     }
   }
 
+  // Prevent stale executions if opportunity is already resolved
+  if (
+    execution.opportunity.status === 'RECOVERED' ||
+    execution.opportunity.status === 'FAILED' ||
+    execution.opportunity.status === 'DISMISSED'
+  ) {
+    await prisma.recoveryExecution.update({
+      where: { id: execution.id },
+      data: {
+        status: ExecutionStatus.CANCELLED,
+        failureReason: `Execution aborted: Opportunity already in terminal state (${execution.opportunity.status})`,
+        completedAt: new Date()
+      }
+    })
+    return {
+      success: false,
+      statusCode: 409,
+      error: `Execution aborted because opportunity is already ${execution.opportunity.status}`
+    }
+  }
+
   if (execution.status === ExecutionStatus.CANCELLED) {
     return {
       success: false,

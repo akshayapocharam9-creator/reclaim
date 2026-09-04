@@ -1,6 +1,7 @@
 import prisma from '../prisma'
 import { CadenceStatus, OpportunityStatus } from '@prisma/client'
 import { scheduleDunningCadence, advanceDunningCadence, processDueCadences } from './dunning-cadence-service'
+import { processExecution } from '../execution/service'
 
 async function runTests() {
   console.log('--- RUNNING DUNNING CADENCE TESTS ---')
@@ -85,7 +86,49 @@ async function runTests() {
   if (sch2.success) throw new Error('Should not schedule for RECOVERED opp')
   console.log('✅ Properly blocked scheduling on already-recovered opportunity')
 
+  // 7. Verify a queued execution aborts if opportunity is recovered in the meantime
+  const opp3 = await prisma.recoveryOpportunity.create({
+    data: {
+      tenantId: tenant.id,
+      type: 'PAYMENT_FAILURE',
+      status: 'DETECTED',
+      amountAtRiskMinor: 1000,
+      recoverableAmountMinor: 1000,
+      priority: 'HIGH',
+      score: 90,
+      reason: 'Test abort on recovered',
+      evidence: {}
+    }
+  })
+
+  // Schedule and advance to get a queued execution
+  const sch3 = await scheduleDunningCadence(tenant.id, opp3.id)
+  if (!sch3.success || !sch3.cadenceId) throw new Error('Failed to schedule cadence 3')
+  const adv3 = await advanceDunningCadence(sch3.cadenceId)
+  if (!adv3.success || !adv3.executionId) throw new Error('Failed to advance cadence 3')
+
+  // Now mutate the opportunity to RECOVERED externally
+  await prisma.recoveryOpportunity.update({
+    where: { id: opp3.id },
+    data: { status: 'RECOVERED' }
+  })
+
+  // Attempt to process the queued execution
+  const execResult = await processExecution(adv3.executionId, tenant.id)
+  
+  if (execResult.success || execResult.statusCode !== 409) {
+    throw new Error('processExecution should have aborted with 409 for a RECOVERED opportunity')
+  }
+
+  const abortedExec = await prisma.recoveryExecution.findUnique({ where: { id: adv3.executionId } })
+  if (abortedExec?.status !== 'CANCELLED') {
+    throw new Error('Execution should be marked CANCELLED')
+  }
+  
+  console.log('✅ Execution aborted safely when opportunity was already RECOVERED')
+
   console.log('--- ALL TESTS PASSED ---')
+  process.exit(0)
 }
 
 runTests().catch(e => {
