@@ -11,14 +11,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
   const isLoginPage = pathname === '/login';
+  const isPublicPage = isLoginPage || pathname === '/recover' || pathname?.startsWith('/recover/');
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isLoginPage) {
+    if (!isLoading && !isAuthenticated && !isPublicPage) {
       router.push('/login');
     }
-  }, [isLoading, isAuthenticated, isLoginPage, router]);
+  }, [isLoading, isAuthenticated, isPublicPage, router]);
 
-  if (isLoginPage) {
+  if (isPublicPage) {
     return <main className="min-h-screen">{children}</main>;
   }
 

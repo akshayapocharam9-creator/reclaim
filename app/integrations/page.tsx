@@ -19,10 +19,56 @@ export default function IntegrationsPage() {
   const [simResult, setSimResult] = useState<any>(null);
 
   useEffect(() => {
-    fetchIntegrations();
+    let active = true;
+
+    async function loadIntegrations() {
+      try {
+        const res = await fetch('/api/revenue/integrations');
+        if (res.ok && active) {
+          const data = await res.json();
+          setIntegrationsData(data);
+        }
+      } catch (err) {
+        console.error('Error loading integrations:', err);
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    }
+
+    loadIntegrations();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const fetchIntegrations = async () => {
+  useEffect(() => {
+    let active = true;
+
+    if (activeTab === 'webhook_logs') {
+      async function loadLogs() {
+        try {
+          const res = await fetch('/api/revenue/webhooks?limit=25');
+          if (res.ok && active) {
+            const data = await res.json();
+            setWebhookLogs(data.events || []);
+          }
+        } catch (err) {
+          console.error('Error fetching webhook logs:', err);
+        } finally {
+          if (active) setIsLogsLoading(false);
+        }
+      }
+
+      loadLogs();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [activeTab]);
+
+  const refreshIntegrations = async () => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/revenue/integrations');
@@ -37,7 +83,7 @@ export default function IntegrationsPage() {
     }
   };
 
-  const fetchWebhookLogs = async () => {
+  const refreshWebhookLogs = async () => {
     setIsLogsLoading(true);
     try {
       const res = await fetch('/api/revenue/webhooks?limit=25');
@@ -51,12 +97,6 @@ export default function IntegrationsPage() {
       setIsLogsLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (activeTab === 'webhook_logs') {
-      fetchWebhookLogs();
-    }
-  }, [activeTab]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -112,9 +152,9 @@ export default function IntegrationsPage() {
       });
 
       // Refresh data
-      await fetchIntegrations();
+      await refreshIntegrations();
       if (activeTab === 'webhook_logs') {
-        await fetchWebhookLogs();
+        await refreshWebhookLogs();
       }
     } catch (err: any) {
       setSimResult({ status: 500, message: err.message || 'Simulation network error' });
@@ -360,7 +400,7 @@ export default function IntegrationsPage() {
               <p className="text-xs text-gray-500 mt-0.5">Real events captured from payment webhooks for your organization.</p>
             </div>
             <button
-              onClick={fetchWebhookLogs}
+              onClick={refreshWebhookLogs}
               disabled={isLogsLoading}
               className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >

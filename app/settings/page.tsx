@@ -32,10 +32,47 @@ export default function SettingsPage() {
   ]);
 
   useEffect(() => {
-    fetchPolicies();
+    let active = true;
+
+    async function loadPolicies() {
+      try {
+        const res = await fetch('/api/revenue/policies');
+        if (!res.ok) {
+          throw new Error('Failed to load recovery policies');
+        }
+        const data = await res.json();
+        if (!active) return;
+        const p = data.activePolicy;
+        if (p) {
+          setPolicyId(p.id);
+          setPolicyVersion(p.version || 1);
+          setAutoExecutionEnabled(Boolean(p.autoExecutionEnabled));
+          setMaxAmountINR(Math.round((p.maxAmountMinor || 1000000) / 100));
+          setMinAmountINR(Math.round((p.minAmountMinor || 0) / 100));
+          setCooldownMinutes(Math.round((p.cooldownSeconds || 3600) / 60));
+          setMaxAttempts(p.maxAttempts || 3);
+          if (Array.isArray(p.allowedPriorities)) setAllowedPriorities(p.allowedPriorities);
+          if (Array.isArray(p.allowedActions)) setAllowedActions(p.allowedActions);
+        }
+      } catch (err: any) {
+        if (active) {
+          setErrorMessage(err.message || 'Error loading settings');
+        }
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadPolicies();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const fetchPolicies = async () => {
+  const resetPolicies = async () => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
@@ -314,7 +351,7 @@ export default function SettingsPage() {
       {isPrivileged && (
         <div className="flex justify-end gap-3 pt-4">
           <button
-            onClick={fetchPolicies}
+            onClick={resetPolicies}
             disabled={isSaving}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#18181b] border border-gray-200 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           >

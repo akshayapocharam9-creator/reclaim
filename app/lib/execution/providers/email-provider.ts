@@ -19,7 +19,12 @@ export class EmailExecutionProvider implements RecoveryExecutionProvider {
     const recipientEmail = request.customer?.email
     const senderEmail = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || 'recoveries@reclaim-platform.com'
     const subject = request.messageSubject || `Important Notice: Your Payment of ${request.currency} ${(request.amountMinor / 100).toFixed(2)}`
-    const body = request.messageBody || 'Please review and update your payment method to maintain uninterrupted service.'
+    let body = request.messageBody || 'Please review and update your payment method to maintain uninterrupted service.'
+
+    const recoveryUrl = (request.metadata?.recoveryUrl as string) || ((request.metadata?.customMetadata as Record<string, unknown>)?.recoveryUrl as string)
+    if (recoveryUrl && !body.includes(recoveryUrl)) {
+      body = `${body}\n\nResolve your payment securely: ${recoveryUrl}`
+    }
 
     // 1. In AUDIT mode: Safely simulate email delivery
     if (request.mode === 'audit') {
@@ -41,6 +46,7 @@ export class EmailExecutionProvider implements RecoveryExecutionProvider {
           sender: senderEmail,
           subject,
           bodySnippet: body.substring(0, 100),
+          recoveryUrl: recoveryUrl || undefined,
           idempotencyKey: request.idempotencyKey
         },
         executedAt: new Date()
