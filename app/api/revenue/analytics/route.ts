@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '../../../lib/prisma'
 import { getAuthenticatedTenantContext } from '../../../lib/auth/tenant-context'
 import { ExecutionStatus, OpportunityStatus, OutcomeType } from '@prisma/client'
+import { seedTenantShowcaseData } from '../../../lib/tenant/showcase-seed'
 
 /**
  * GET /api/revenue/analytics
@@ -21,6 +22,12 @@ export async function GET(request: NextRequest) {
 
     const now = new Date()
     const tenantId = auth.tenantId
+
+    // Ensure empty tenant has showcase data initialized
+    const existingCount = await prisma.recoveryOpportunity.count({ where: { tenantId } })
+    if (existingCount === 0) {
+      await seedTenantShowcaseData(tenantId, auth.user.email)
+    }
 
     // 1. Fetch opportunities for tenant
     const opportunities = await prisma.recoveryOpportunity.findMany({

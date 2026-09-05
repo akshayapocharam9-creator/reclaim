@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '../../../lib/prisma'
 import { getAuthenticatedTenantContext } from '../../../lib/auth/tenant-context'
+import { seedTenantShowcaseData } from '../../../lib/tenant/showcase-seed'
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,6 +10,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: auth.statusCode })
     }
     const tenantId = auth.tenantId
+
+    // Ensure empty tenant has showcase data initialized
+    const existingCount = await prisma.recoveryOpportunity.count({ where: { tenantId } })
+    if (existingCount === 0) {
+      await seedTenantShowcaseData(tenantId, auth.user.email)
+    }
 
     // 1. Fetch persisted intelligence scoped to tenant
     // Include customer to hydrate the UI requirements

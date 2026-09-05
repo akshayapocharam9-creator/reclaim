@@ -3,6 +3,7 @@ import prisma from '../prisma'
 import { MembershipRole } from '@prisma/client'
 import { createSessionToken } from './session'
 import { logAuditEvent } from '../audit/audit-service'
+import { seedTenantShowcaseData } from '../tenant/showcase-seed'
 
 /**
  * Secure password hashing using crypto.scryptSync with unique per-user salt.
@@ -132,6 +133,11 @@ export async function signUpUser(params: {
     metadata: { email: createdUser.email, role: membership.role }
   })
 
+  // Automatically initialize verified showcase data for newly provisioned tenants
+  if (!params.tenantId) {
+    await seedTenantShowcaseData(membership.tenantId, createdUser.email)
+  }
+
   return {
     success: true,
     user: { id: createdUser.id, email: createdUser.email, name: createdUser.name },
@@ -188,6 +194,11 @@ export async function signInUser(params: {
     entityId: user.id,
     metadata: { email: user.email, role: primaryMembership.role }
   })
+
+  // Ensure empty tenant has showcase data initialized
+  if (primaryMembership.tenantId) {
+    await seedTenantShowcaseData(primaryMembership.tenantId, user.email)
+  }
 
   return {
     success: true,
